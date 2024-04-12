@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/library"
 	"github.com/altierawr/vstreamer/ent/video"
 )
 
@@ -38,6 +39,25 @@ func (vc *VideoCreate) SetNillableCreatedAt(t *time.Time) *VideoCreate {
 		vc.SetCreatedAt(*t)
 	}
 	return vc
+}
+
+// SetLibraryID sets the "library" edge to the Library entity by ID.
+func (vc *VideoCreate) SetLibraryID(id int) *VideoCreate {
+	vc.mutation.SetLibraryID(id)
+	return vc
+}
+
+// SetNillableLibraryID sets the "library" edge to the Library entity by ID if the given value is not nil.
+func (vc *VideoCreate) SetNillableLibraryID(id *int) *VideoCreate {
+	if id != nil {
+		vc = vc.SetLibraryID(*id)
+	}
+	return vc
+}
+
+// SetLibrary sets the "library" edge to the Library entity.
+func (vc *VideoCreate) SetLibrary(l *Library) *VideoCreate {
+	return vc.SetLibraryID(l.ID)
 }
 
 // Mutation returns the VideoMutation object of the builder.
@@ -122,6 +142,23 @@ func (vc *VideoCreate) createSpec() (*Video, *sqlgraph.CreateSpec) {
 	if value, ok := vc.mutation.CreatedAt(); ok {
 		_spec.SetField(video.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
+	}
+	if nodes := vc.mutation.LibraryIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   video.LibraryTable,
+			Columns: []string{video.LibraryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(library.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.library_videos = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
 }

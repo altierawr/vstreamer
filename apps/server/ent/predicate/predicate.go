@@ -6,5 +6,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// Library is the predicate function for library builders.
+type Library func(*sql.Selector)
+
 // Video is the predicate function for video builders.
 type Video func(*sql.Selector)

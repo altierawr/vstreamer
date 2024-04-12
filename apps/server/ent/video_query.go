@@ -10,6 +10,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/library"
 	"github.com/altierawr/vstreamer/ent/predicate"
 	"github.com/altierawr/vstreamer/ent/video"
 )
@@ -17,12 +18,14 @@ import (
 // VideoQuery is the builder for querying Video entities.
 type VideoQuery struct {
 	config
-	ctx        *QueryContext
-	order      []video.OrderOption
-	inters     []Interceptor
-	predicates []predicate.Video
-	modifiers  []func(*sql.Selector)
-	loadTotal  []func(context.Context, []*Video) error
+	ctx         *QueryContext
+	order       []video.OrderOption
+	inters      []Interceptor
+	predicates  []predicate.Video
+	withLibrary *LibraryQuery
+	withFKs     bool
+	modifiers   []func(*sql.Selector)
+	loadTotal   []func(context.Context, []*Video) error
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -57,6 +60,28 @@ func (vq *VideoQuery) Unique(unique bool) *VideoQuery {
 func (vq *VideoQuery) Order(o ...video.OrderOption) *VideoQuery {
 	vq.order = append(vq.order, o...)
 	return vq
+}
+
+// QueryLibrary chains the current query on the "library" edge.
+func (vq *VideoQuery) QueryLibrary() *LibraryQuery {
+	query := (&LibraryClient{config: vq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := vq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := vq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(video.Table, video.FieldID, selector),
+			sqlgraph.To(library.Table, library.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, video.LibraryTable, video.LibraryColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(vq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
 }
 
 // First returns the first Video entity from the query.
@@ -246,15 +271,27 @@ func (vq *VideoQuery) Clone() *VideoQuery {
 		return nil
 	}
 	return &VideoQuery{
-		config:     vq.config,
-		ctx:        vq.ctx.Clone(),
-		order:      append([]video.OrderOption{}, vq.order...),
-		inters:     append([]Interceptor{}, vq.inters...),
-		predicates: append([]predicate.Video{}, vq.predicates...),
+		config:      vq.config,
+		ctx:         vq.ctx.Clone(),
+		order:       append([]video.OrderOption{}, vq.order...),
+		inters:      append([]Interceptor{}, vq.inters...),
+		predicates:  append([]predicate.Video{}, vq.predicates...),
+		withLibrary: vq.withLibrary.Clone(),
 		// clone intermediate query.
 		sql:  vq.sql.Clone(),
 		path: vq.path,
 	}
+}
+
+// WithLibrary tells the query-builder to eager-load the nodes that are connected to
+// the "library" edge. The optional arguments are used to configure the query builder of the edge.
+func (vq *VideoQuery) WithLibrary(opts ...func(*LibraryQuery)) *VideoQuery {
+	query := (&LibraryClient{config: vq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	vq.withLibrary = query
+	return vq
 }
 
 // GroupBy is used to group vertices by one or more fields/columns.
@@ -333,15 +370,26 @@ func (vq *VideoQuery) prepareQuery(ctx context.Context) error {
 
 func (vq *VideoQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Video, error) {
 	var (
-		nodes = []*Video{}
-		_spec = vq.querySpec()
+		nodes       = []*Video{}
+		withFKs     = vq.withFKs
+		_spec       = vq.querySpec()
+		loadedTypes = [1]bool{
+			vq.withLibrary != nil,
+		}
 	)
+	if vq.withLibrary != nil {
+		withFKs = true
+	}
+	if withFKs {
+		_spec.Node.Columns = append(_spec.Node.Columns, video.ForeignKeys...)
+	}
 	_spec.ScanValues = func(columns []string) ([]any, error) {
 		return (*Video).scanValues(nil, columns)
 	}
 	_spec.Assign = func(columns []string, values []any) error {
 		node := &Video{config: vq.config}
 		nodes = append(nodes, node)
+		node.Edges.loadedTypes = loadedTypes
 		return node.assignValues(columns, values)
 	}
 	if len(vq.modifiers) > 0 {
@@ -356,12 +404,51 @@ func (vq *VideoQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Video,
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
+	if query := vq.withLibrary; query != nil {
+		if err := vq.loadLibrary(ctx, query, nodes, nil,
+			func(n *Video, e *Library) { n.Edges.Library = e }); err != nil {
+			return nil, err
+		}
+	}
 	for i := range vq.loadTotal {
 		if err := vq.loadTotal[i](ctx, nodes); err != nil {
 			return nil, err
 		}
 	}
 	return nodes, nil
+}
+
+func (vq *VideoQuery) loadLibrary(ctx context.Context, query *LibraryQuery, nodes []*Video, init func(*Video), assign func(*Video, *Library)) error {
+	ids := make([]int, 0, len(nodes))
+	nodeids := make(map[int][]*Video)
+	for i := range nodes {
+		if nodes[i].library_videos == nil {
+			continue
+		}
+		fk := *nodes[i].library_videos
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	query.Where(library.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "library_videos" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
 }
 
 func (vq *VideoQuery) sqlCount(ctx context.Context) (int, error) {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/altierawr/vstreamer/ent/predicate"
 )
 
@@ -167,6 +168,29 @@ func CreatedAtLT(v time.Time) predicate.Video {
 // CreatedAtLTE applies the LTE predicate on the "created_at" field.
 func CreatedAtLTE(v time.Time) predicate.Video {
 	return predicate.Video(sql.FieldLTE(FieldCreatedAt, v))
+}
+
+// HasLibrary applies the HasEdge predicate on the "library" edge.
+func HasLibrary() predicate.Video {
+	return predicate.Video(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, LibraryTable, LibraryColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasLibraryWith applies the HasEdge predicate on the "library" edge with a given conditions (other predicates).
+func HasLibraryWith(preds ...predicate.Library) predicate.Video {
+	return predicate.Video(func(s *sql.Selector) {
+		step := newLibraryStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
 }
 
 // And groups predicates with the AND operator between them.

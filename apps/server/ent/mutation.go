@@ -11,6 +11,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/altierawr/vstreamer/ent/library"
 	"github.com/altierawr/vstreamer/ent/predicate"
 	"github.com/altierawr/vstreamer/ent/video"
 )
@@ -24,11 +25,12 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeVideo = "Video"
+	TypeLibrary = "Library"
+	TypeVideo   = "Video"
 )
 
-// VideoMutation represents an operation that mutates the Video nodes in the graph.
-type VideoMutation struct {
+// LibraryMutation represents an operation that mutates the Library nodes in the graph.
+type LibraryMutation struct {
 	config
 	op            Op
 	typ           string
@@ -36,9 +38,484 @@ type VideoMutation struct {
 	_path         *string
 	created_at    *time.Time
 	clearedFields map[string]struct{}
+	videos        map[int]struct{}
+	removedvideos map[int]struct{}
+	clearedvideos bool
 	done          bool
-	oldValue      func(context.Context) (*Video, error)
-	predicates    []predicate.Video
+	oldValue      func(context.Context) (*Library, error)
+	predicates    []predicate.Library
+}
+
+var _ ent.Mutation = (*LibraryMutation)(nil)
+
+// libraryOption allows management of the mutation configuration using functional options.
+type libraryOption func(*LibraryMutation)
+
+// newLibraryMutation creates new mutation for the Library entity.
+func newLibraryMutation(c config, op Op, opts ...libraryOption) *LibraryMutation {
+	m := &LibraryMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeLibrary,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withLibraryID sets the ID field of the mutation.
+func withLibraryID(id int) libraryOption {
+	return func(m *LibraryMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Library
+		)
+		m.oldValue = func(ctx context.Context) (*Library, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Library.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withLibrary sets the old Library of the mutation.
+func withLibrary(node *Library) libraryOption {
+	return func(m *LibraryMutation) {
+		m.oldValue = func(context.Context) (*Library, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m LibraryMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m LibraryMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *LibraryMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *LibraryMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Library.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetPath sets the "path" field.
+func (m *LibraryMutation) SetPath(s string) {
+	m._path = &s
+}
+
+// Path returns the value of the "path" field in the mutation.
+func (m *LibraryMutation) Path() (r string, exists bool) {
+	v := m._path
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPath returns the old "path" field's value of the Library entity.
+// If the Library object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LibraryMutation) OldPath(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPath is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPath requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPath: %w", err)
+	}
+	return oldValue.Path, nil
+}
+
+// ResetPath resets all changes to the "path" field.
+func (m *LibraryMutation) ResetPath() {
+	m._path = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *LibraryMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *LibraryMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Library entity.
+// If the Library object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LibraryMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *LibraryMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// AddVideoIDs adds the "videos" edge to the Video entity by ids.
+func (m *LibraryMutation) AddVideoIDs(ids ...int) {
+	if m.videos == nil {
+		m.videos = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.videos[ids[i]] = struct{}{}
+	}
+}
+
+// ClearVideos clears the "videos" edge to the Video entity.
+func (m *LibraryMutation) ClearVideos() {
+	m.clearedvideos = true
+}
+
+// VideosCleared reports if the "videos" edge to the Video entity was cleared.
+func (m *LibraryMutation) VideosCleared() bool {
+	return m.clearedvideos
+}
+
+// RemoveVideoIDs removes the "videos" edge to the Video entity by IDs.
+func (m *LibraryMutation) RemoveVideoIDs(ids ...int) {
+	if m.removedvideos == nil {
+		m.removedvideos = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.videos, ids[i])
+		m.removedvideos[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedVideos returns the removed IDs of the "videos" edge to the Video entity.
+func (m *LibraryMutation) RemovedVideosIDs() (ids []int) {
+	for id := range m.removedvideos {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// VideosIDs returns the "videos" edge IDs in the mutation.
+func (m *LibraryMutation) VideosIDs() (ids []int) {
+	for id := range m.videos {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetVideos resets all changes to the "videos" edge.
+func (m *LibraryMutation) ResetVideos() {
+	m.videos = nil
+	m.clearedvideos = false
+	m.removedvideos = nil
+}
+
+// Where appends a list predicates to the LibraryMutation builder.
+func (m *LibraryMutation) Where(ps ...predicate.Library) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the LibraryMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *LibraryMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Library, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *LibraryMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *LibraryMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Library).
+func (m *LibraryMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *LibraryMutation) Fields() []string {
+	fields := make([]string, 0, 2)
+	if m._path != nil {
+		fields = append(fields, library.FieldPath)
+	}
+	if m.created_at != nil {
+		fields = append(fields, library.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *LibraryMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case library.FieldPath:
+		return m.Path()
+	case library.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *LibraryMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case library.FieldPath:
+		return m.OldPath(ctx)
+	case library.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Library field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *LibraryMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case library.FieldPath:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPath(v)
+		return nil
+	case library.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Library field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *LibraryMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *LibraryMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *LibraryMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Library numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *LibraryMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *LibraryMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *LibraryMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Library nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *LibraryMutation) ResetField(name string) error {
+	switch name {
+	case library.FieldPath:
+		m.ResetPath()
+		return nil
+	case library.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Library field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *LibraryMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.videos != nil {
+		edges = append(edges, library.EdgeVideos)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *LibraryMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case library.EdgeVideos:
+		ids := make([]ent.Value, 0, len(m.videos))
+		for id := range m.videos {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *LibraryMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.removedvideos != nil {
+		edges = append(edges, library.EdgeVideos)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *LibraryMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case library.EdgeVideos:
+		ids := make([]ent.Value, 0, len(m.removedvideos))
+		for id := range m.removedvideos {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *LibraryMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedvideos {
+		edges = append(edges, library.EdgeVideos)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *LibraryMutation) EdgeCleared(name string) bool {
+	switch name {
+	case library.EdgeVideos:
+		return m.clearedvideos
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *LibraryMutation) ClearEdge(name string) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Library unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *LibraryMutation) ResetEdge(name string) error {
+	switch name {
+	case library.EdgeVideos:
+		m.ResetVideos()
+		return nil
+	}
+	return fmt.Errorf("unknown Library edge %s", name)
+}
+
+// VideoMutation represents an operation that mutates the Video nodes in the graph.
+type VideoMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int
+	_path          *string
+	created_at     *time.Time
+	clearedFields  map[string]struct{}
+	library        *int
+	clearedlibrary bool
+	done           bool
+	oldValue       func(context.Context) (*Video, error)
+	predicates     []predicate.Video
 }
 
 var _ ent.Mutation = (*VideoMutation)(nil)
@@ -211,6 +688,45 @@ func (m *VideoMutation) ResetCreatedAt() {
 	m.created_at = nil
 }
 
+// SetLibraryID sets the "library" edge to the Library entity by id.
+func (m *VideoMutation) SetLibraryID(id int) {
+	m.library = &id
+}
+
+// ClearLibrary clears the "library" edge to the Library entity.
+func (m *VideoMutation) ClearLibrary() {
+	m.clearedlibrary = true
+}
+
+// LibraryCleared reports if the "library" edge to the Library entity was cleared.
+func (m *VideoMutation) LibraryCleared() bool {
+	return m.clearedlibrary
+}
+
+// LibraryID returns the "library" edge ID in the mutation.
+func (m *VideoMutation) LibraryID() (id int, exists bool) {
+	if m.library != nil {
+		return *m.library, true
+	}
+	return
+}
+
+// LibraryIDs returns the "library" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// LibraryID instead. It exists only for internal usage by the builders.
+func (m *VideoMutation) LibraryIDs() (ids []int) {
+	if id := m.library; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetLibrary resets all changes to the "library" edge.
+func (m *VideoMutation) ResetLibrary() {
+	m.library = nil
+	m.clearedlibrary = false
+}
+
 // Where appends a list predicates to the VideoMutation builder.
 func (m *VideoMutation) Where(ps ...predicate.Video) {
 	m.predicates = append(m.predicates, ps...)
@@ -361,19 +877,28 @@ func (m *VideoMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *VideoMutation) AddedEdges() []string {
-	edges := make([]string, 0, 0)
+	edges := make([]string, 0, 1)
+	if m.library != nil {
+		edges = append(edges, video.EdgeLibrary)
+	}
 	return edges
 }
 
 // AddedIDs returns all IDs (to other nodes) that were added for the given edge
 // name in this mutation.
 func (m *VideoMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case video.EdgeLibrary:
+		if id := m.library; id != nil {
+			return []ent.Value{*id}
+		}
+	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *VideoMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 0)
+	edges := make([]string, 0, 1)
 	return edges
 }
 
@@ -385,24 +910,41 @@ func (m *VideoMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *VideoMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 0)
+	edges := make([]string, 0, 1)
+	if m.clearedlibrary {
+		edges = append(edges, video.EdgeLibrary)
+	}
 	return edges
 }
 
 // EdgeCleared returns a boolean which indicates if the edge with the given name
 // was cleared in this mutation.
 func (m *VideoMutation) EdgeCleared(name string) bool {
+	switch name {
+	case video.EdgeLibrary:
+		return m.clearedlibrary
+	}
 	return false
 }
 
 // ClearEdge clears the value of the edge with the given name. It returns an error
 // if that edge is not defined in the schema.
 func (m *VideoMutation) ClearEdge(name string) error {
+	switch name {
+	case video.EdgeLibrary:
+		m.ClearLibrary()
+		return nil
+	}
 	return fmt.Errorf("unknown Video unique edge %s", name)
 }
 
 // ResetEdge resets all changes to the edge with the given name in this mutation.
 // It returns an error if the edge is not defined in the schema.
 func (m *VideoMutation) ResetEdge(name string) error {
+	switch name {
+	case video.EdgeLibrary:
+		m.ResetLibrary()
+		return nil
+	}
 	return fmt.Errorf("unknown Video edge %s", name)
 }

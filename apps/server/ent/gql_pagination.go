@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/errcode"
+	"github.com/altierawr/vstreamer/ent/library"
 	"github.com/altierawr/vstreamer/ent/video"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
@@ -93,6 +94,255 @@ func paginateLimit(first, last *int) int {
 		limit = *last + 1
 	}
 	return limit
+}
+
+// LibraryEdge is the edge representation of Library.
+type LibraryEdge struct {
+	Node   *Library `json:"node"`
+	Cursor Cursor   `json:"cursor"`
+}
+
+// LibraryConnection is the connection containing edges to Library.
+type LibraryConnection struct {
+	Edges      []*LibraryEdge `json:"edges"`
+	PageInfo   PageInfo       `json:"pageInfo"`
+	TotalCount int            `json:"totalCount"`
+}
+
+func (c *LibraryConnection) build(nodes []*Library, pager *libraryPager, after *Cursor, first *int, before *Cursor, last *int) {
+	c.PageInfo.HasNextPage = before != nil
+	c.PageInfo.HasPreviousPage = after != nil
+	if first != nil && *first+1 == len(nodes) {
+		c.PageInfo.HasNextPage = true
+		nodes = nodes[:len(nodes)-1]
+	} else if last != nil && *last+1 == len(nodes) {
+		c.PageInfo.HasPreviousPage = true
+		nodes = nodes[:len(nodes)-1]
+	}
+	var nodeAt func(int) *Library
+	if last != nil {
+		n := len(nodes) - 1
+		nodeAt = func(i int) *Library {
+			return nodes[n-i]
+		}
+	} else {
+		nodeAt = func(i int) *Library {
+			return nodes[i]
+		}
+	}
+	c.Edges = make([]*LibraryEdge, len(nodes))
+	for i := range nodes {
+		node := nodeAt(i)
+		c.Edges[i] = &LibraryEdge{
+			Node:   node,
+			Cursor: pager.toCursor(node),
+		}
+	}
+	if l := len(c.Edges); l > 0 {
+		c.PageInfo.StartCursor = &c.Edges[0].Cursor
+		c.PageInfo.EndCursor = &c.Edges[l-1].Cursor
+	}
+	if c.TotalCount == 0 {
+		c.TotalCount = len(nodes)
+	}
+}
+
+// LibraryPaginateOption enables pagination customization.
+type LibraryPaginateOption func(*libraryPager) error
+
+// WithLibraryOrder configures pagination ordering.
+func WithLibraryOrder(order *LibraryOrder) LibraryPaginateOption {
+	if order == nil {
+		order = DefaultLibraryOrder
+	}
+	o := *order
+	return func(pager *libraryPager) error {
+		if err := o.Direction.Validate(); err != nil {
+			return err
+		}
+		if o.Field == nil {
+			o.Field = DefaultLibraryOrder.Field
+		}
+		pager.order = &o
+		return nil
+	}
+}
+
+// WithLibraryFilter configures pagination filter.
+func WithLibraryFilter(filter func(*LibraryQuery) (*LibraryQuery, error)) LibraryPaginateOption {
+	return func(pager *libraryPager) error {
+		if filter == nil {
+			return errors.New("LibraryQuery filter cannot be nil")
+		}
+		pager.filter = filter
+		return nil
+	}
+}
+
+type libraryPager struct {
+	reverse bool
+	order   *LibraryOrder
+	filter  func(*LibraryQuery) (*LibraryQuery, error)
+}
+
+func newLibraryPager(opts []LibraryPaginateOption, reverse bool) (*libraryPager, error) {
+	pager := &libraryPager{reverse: reverse}
+	for _, opt := range opts {
+		if err := opt(pager); err != nil {
+			return nil, err
+		}
+	}
+	if pager.order == nil {
+		pager.order = DefaultLibraryOrder
+	}
+	return pager, nil
+}
+
+func (p *libraryPager) applyFilter(query *LibraryQuery) (*LibraryQuery, error) {
+	if p.filter != nil {
+		return p.filter(query)
+	}
+	return query, nil
+}
+
+func (p *libraryPager) toCursor(l *Library) Cursor {
+	return p.order.Field.toCursor(l)
+}
+
+func (p *libraryPager) applyCursors(query *LibraryQuery, after, before *Cursor) (*LibraryQuery, error) {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	for _, predicate := range entgql.CursorsPredicate(after, before, DefaultLibraryOrder.Field.column, p.order.Field.column, direction) {
+		query = query.Where(predicate)
+	}
+	return query, nil
+}
+
+func (p *libraryPager) applyOrder(query *LibraryQuery) *LibraryQuery {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	query = query.Order(p.order.Field.toTerm(direction.OrderTermOption()))
+	if p.order.Field != DefaultLibraryOrder.Field {
+		query = query.Order(DefaultLibraryOrder.Field.toTerm(direction.OrderTermOption()))
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return query
+}
+
+func (p *libraryPager) orderExpr(query *LibraryQuery) sql.Querier {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return sql.ExprFunc(func(b *sql.Builder) {
+		b.Ident(p.order.Field.column).Pad().WriteString(string(direction))
+		if p.order.Field != DefaultLibraryOrder.Field {
+			b.Comma().Ident(DefaultLibraryOrder.Field.column).Pad().WriteString(string(direction))
+		}
+	})
+}
+
+// Paginate executes the query and returns a relay based cursor connection to Library.
+func (l *LibraryQuery) Paginate(
+	ctx context.Context, after *Cursor, first *int,
+	before *Cursor, last *int, opts ...LibraryPaginateOption,
+) (*LibraryConnection, error) {
+	if err := validateFirstLast(first, last); err != nil {
+		return nil, err
+	}
+	pager, err := newLibraryPager(opts, last != nil)
+	if err != nil {
+		return nil, err
+	}
+	if l, err = pager.applyFilter(l); err != nil {
+		return nil, err
+	}
+	conn := &LibraryConnection{Edges: []*LibraryEdge{}}
+	ignoredEdges := !hasCollectedField(ctx, edgesField)
+	if hasCollectedField(ctx, totalCountField) || hasCollectedField(ctx, pageInfoField) {
+		hasPagination := after != nil || first != nil || before != nil || last != nil
+		if hasPagination || ignoredEdges {
+			c := l.Clone()
+			c.ctx.Fields = nil
+			if conn.TotalCount, err = c.Count(ctx); err != nil {
+				return nil, err
+			}
+			conn.PageInfo.HasNextPage = first != nil && conn.TotalCount > 0
+			conn.PageInfo.HasPreviousPage = last != nil && conn.TotalCount > 0
+		}
+	}
+	if ignoredEdges || (first != nil && *first == 0) || (last != nil && *last == 0) {
+		return conn, nil
+	}
+	if l, err = pager.applyCursors(l, after, before); err != nil {
+		return nil, err
+	}
+	limit := paginateLimit(first, last)
+	if limit != 0 {
+		l.Limit(limit)
+	}
+	if field := collectedField(ctx, edgesField, nodeField); field != nil {
+		if err := l.collectField(ctx, limit == 1, graphql.GetOperationContext(ctx), *field, []string{edgesField, nodeField}); err != nil {
+			return nil, err
+		}
+	}
+	l = pager.applyOrder(l)
+	nodes, err := l.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	conn.build(nodes, pager, after, first, before, last)
+	return conn, nil
+}
+
+// LibraryOrderField defines the ordering field of Library.
+type LibraryOrderField struct {
+	// Value extracts the ordering value from the given Library.
+	Value    func(*Library) (ent.Value, error)
+	column   string // field or computed.
+	toTerm   func(...sql.OrderTermOption) library.OrderOption
+	toCursor func(*Library) Cursor
+}
+
+// LibraryOrder defines the ordering of Library.
+type LibraryOrder struct {
+	Direction OrderDirection     `json:"direction"`
+	Field     *LibraryOrderField `json:"field"`
+}
+
+// DefaultLibraryOrder is the default ordering of Library.
+var DefaultLibraryOrder = &LibraryOrder{
+	Direction: entgql.OrderDirectionAsc,
+	Field: &LibraryOrderField{
+		Value: func(l *Library) (ent.Value, error) {
+			return l.ID, nil
+		},
+		column: library.FieldID,
+		toTerm: library.ByID,
+		toCursor: func(l *Library) Cursor {
+			return Cursor{ID: l.ID}
+		},
+	},
+}
+
+// ToEdge converts Library into LibraryEdge.
+func (l *Library) ToEdge(order *LibraryOrder) *LibraryEdge {
+	if order == nil {
+		order = DefaultLibraryOrder
+	}
+	return &LibraryEdge{
+		Node:   l,
+		Cursor: order.Field.toCursor(l),
+	}
 }
 
 // VideoEdge is the edge representation of Video.

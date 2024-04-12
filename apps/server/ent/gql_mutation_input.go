@@ -6,10 +6,75 @@ import (
 	"time"
 )
 
+// CreateLibraryInput represents a mutation input for creating libraries.
+type CreateLibraryInput struct {
+	Path      string
+	CreatedAt *time.Time
+	VideoIDs  []int
+}
+
+// Mutate applies the CreateLibraryInput on the LibraryMutation builder.
+func (i *CreateLibraryInput) Mutate(m *LibraryMutation) {
+	m.SetPath(i.Path)
+	if v := i.CreatedAt; v != nil {
+		m.SetCreatedAt(*v)
+	}
+	if v := i.VideoIDs; len(v) > 0 {
+		m.AddVideoIDs(v...)
+	}
+}
+
+// SetInput applies the change-set in the CreateLibraryInput on the LibraryCreate builder.
+func (c *LibraryCreate) SetInput(i CreateLibraryInput) *LibraryCreate {
+	i.Mutate(c.Mutation())
+	return c
+}
+
+// UpdateLibraryInput represents a mutation input for updating libraries.
+type UpdateLibraryInput struct {
+	Path           *string
+	CreatedAt      *time.Time
+	ClearVideos    bool
+	AddVideoIDs    []int
+	RemoveVideoIDs []int
+}
+
+// Mutate applies the UpdateLibraryInput on the LibraryMutation builder.
+func (i *UpdateLibraryInput) Mutate(m *LibraryMutation) {
+	if v := i.Path; v != nil {
+		m.SetPath(*v)
+	}
+	if v := i.CreatedAt; v != nil {
+		m.SetCreatedAt(*v)
+	}
+	if i.ClearVideos {
+		m.ClearVideos()
+	}
+	if v := i.AddVideoIDs; len(v) > 0 {
+		m.AddVideoIDs(v...)
+	}
+	if v := i.RemoveVideoIDs; len(v) > 0 {
+		m.RemoveVideoIDs(v...)
+	}
+}
+
+// SetInput applies the change-set in the UpdateLibraryInput on the LibraryUpdate builder.
+func (c *LibraryUpdate) SetInput(i UpdateLibraryInput) *LibraryUpdate {
+	i.Mutate(c.Mutation())
+	return c
+}
+
+// SetInput applies the change-set in the UpdateLibraryInput on the LibraryUpdateOne builder.
+func (c *LibraryUpdateOne) SetInput(i UpdateLibraryInput) *LibraryUpdateOne {
+	i.Mutate(c.Mutation())
+	return c
+}
+
 // CreateVideoInput represents a mutation input for creating videos.
 type CreateVideoInput struct {
 	Path      string
 	CreatedAt *time.Time
+	LibraryID *int
 }
 
 // Mutate applies the CreateVideoInput on the VideoMutation builder.
@@ -18,10 +83,49 @@ func (i *CreateVideoInput) Mutate(m *VideoMutation) {
 	if v := i.CreatedAt; v != nil {
 		m.SetCreatedAt(*v)
 	}
+	if v := i.LibraryID; v != nil {
+		m.SetLibraryID(*v)
+	}
 }
 
 // SetInput applies the change-set in the CreateVideoInput on the VideoCreate builder.
 func (c *VideoCreate) SetInput(i CreateVideoInput) *VideoCreate {
+	i.Mutate(c.Mutation())
+	return c
+}
+
+// UpdateVideoInput represents a mutation input for updating videos.
+type UpdateVideoInput struct {
+	Path         *string
+	CreatedAt    *time.Time
+	ClearLibrary bool
+	LibraryID    *int
+}
+
+// Mutate applies the UpdateVideoInput on the VideoMutation builder.
+func (i *UpdateVideoInput) Mutate(m *VideoMutation) {
+	if v := i.Path; v != nil {
+		m.SetPath(*v)
+	}
+	if v := i.CreatedAt; v != nil {
+		m.SetCreatedAt(*v)
+	}
+	if i.ClearLibrary {
+		m.ClearLibrary()
+	}
+	if v := i.LibraryID; v != nil {
+		m.SetLibraryID(*v)
+	}
+}
+
+// SetInput applies the change-set in the UpdateVideoInput on the VideoUpdate builder.
+func (c *VideoUpdate) SetInput(i UpdateVideoInput) *VideoUpdate {
+	i.Mutate(c.Mutation())
+	return c
+}
+
+// SetInput applies the change-set in the UpdateVideoInput on the VideoUpdateOne builder.
+func (c *VideoUpdateOne) SetInput(i UpdateVideoInput) *VideoUpdateOne {
 	i.Mutate(c.Mutation())
 	return c
 }

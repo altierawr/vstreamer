@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/altierawr/vstreamer/ent/library"
 	"github.com/altierawr/vstreamer/ent/video"
 )
 
@@ -20,8 +21,34 @@ type Video struct {
 	// Path holds the value of the "path" field.
 	Path string `json:"path,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
-	CreatedAt    time.Time `json:"created_at,omitempty"`
-	selectValues sql.SelectValues
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	// Edges holds the relations/edges for other nodes in the graph.
+	// The values are being populated by the VideoQuery when eager-loading is set.
+	Edges          VideoEdges `json:"edges"`
+	library_videos *int
+	selectValues   sql.SelectValues
+}
+
+// VideoEdges holds the relations/edges for other nodes in the graph.
+type VideoEdges struct {
+	// Library holds the value of the library edge.
+	Library *Library `json:"library,omitempty"`
+	// loadedTypes holds the information for reporting if a
+	// type was loaded (or requested) in eager-loading or not.
+	loadedTypes [1]bool
+	// totalCount holds the count of the edges above.
+	totalCount [1]map[string]int
+}
+
+// LibraryOrErr returns the Library value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e VideoEdges) LibraryOrErr() (*Library, error) {
+	if e.Library != nil {
+		return e.Library, nil
+	} else if e.loadedTypes[0] {
+		return nil, &NotFoundError{label: library.Label}
+	}
+	return nil, &NotLoadedError{edge: "library"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -35,6 +62,8 @@ func (*Video) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullString)
 		case video.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
+		case video.ForeignKeys[0]: // library_videos
+			values[i] = new(sql.NullInt64)
 		default:
 			values[i] = new(sql.UnknownType)
 		}
@@ -68,6 +97,13 @@ func (v *Video) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				v.CreatedAt = value.Time
 			}
+		case video.ForeignKeys[0]:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for edge-field library_videos", value)
+			} else if value.Valid {
+				v.library_videos = new(int)
+				*v.library_videos = int(value.Int64)
+			}
 		default:
 			v.selectValues.Set(columns[i], values[i])
 		}
@@ -79,6 +115,11 @@ func (v *Video) assignValues(columns []string, values []any) error {
 // This includes values selected through modifiers, order, etc.
 func (v *Video) Value(name string) (ent.Value, error) {
 	return v.selectValues.Get(name)
+}
+
+// QueryLibrary queries the "library" edge of the Video entity.
+func (v *Video) QueryLibrary() *LibraryQuery {
+	return NewVideoClient(v.config).QueryLibrary(v)
 }
 
 // Update returns a builder for updating this Video.

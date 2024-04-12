@@ -8,23 +8,46 @@ import (
 )
 
 var (
+	// LibrariesColumns holds the columns for the "libraries" table.
+	LibrariesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "path", Type: field.TypeString},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// LibrariesTable holds the schema information for the "libraries" table.
+	LibrariesTable = &schema.Table{
+		Name:       "libraries",
+		Columns:    LibrariesColumns,
+		PrimaryKey: []*schema.Column{LibrariesColumns[0]},
+	}
 	// VideosColumns holds the columns for the "videos" table.
 	VideosColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "path", Type: field.TypeString},
 		{Name: "created_at", Type: field.TypeTime},
+		{Name: "library_videos", Type: field.TypeInt, Nullable: true},
 	}
 	// VideosTable holds the schema information for the "videos" table.
 	VideosTable = &schema.Table{
 		Name:       "videos",
 		Columns:    VideosColumns,
 		PrimaryKey: []*schema.Column{VideosColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "videos_libraries_videos",
+				Columns:    []*schema.Column{VideosColumns[3]},
+				RefColumns: []*schema.Column{LibrariesColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		LibrariesTable,
 		VideosTable,
 	}
 )
 
 func init() {
+	VideosTable.ForeignKeys[0].RefTable = LibrariesTable
 }

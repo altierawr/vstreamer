@@ -12,6 +12,7 @@ import (
 	"github.com/altierawr/vstreamer/ent"
 	"github.com/altierawr/vstreamer/ent/migrate"
 
+	_ "github.com/altierawr/vstreamer/ent/runtime"
 	_ "github.com/mattn/go-sqlite3"
 )
 

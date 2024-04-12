@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/library"
 	"github.com/altierawr/vstreamer/ent/predicate"
 	"github.com/altierawr/vstreamer/ent/video"
 )
@@ -56,9 +57,34 @@ func (vu *VideoUpdate) SetNillableCreatedAt(t *time.Time) *VideoUpdate {
 	return vu
 }
 
+// SetLibraryID sets the "library" edge to the Library entity by ID.
+func (vu *VideoUpdate) SetLibraryID(id int) *VideoUpdate {
+	vu.mutation.SetLibraryID(id)
+	return vu
+}
+
+// SetNillableLibraryID sets the "library" edge to the Library entity by ID if the given value is not nil.
+func (vu *VideoUpdate) SetNillableLibraryID(id *int) *VideoUpdate {
+	if id != nil {
+		vu = vu.SetLibraryID(*id)
+	}
+	return vu
+}
+
+// SetLibrary sets the "library" edge to the Library entity.
+func (vu *VideoUpdate) SetLibrary(l *Library) *VideoUpdate {
+	return vu.SetLibraryID(l.ID)
+}
+
 // Mutation returns the VideoMutation object of the builder.
 func (vu *VideoUpdate) Mutation() *VideoMutation {
 	return vu.mutation
+}
+
+// ClearLibrary clears the "library" edge to the Library entity.
+func (vu *VideoUpdate) ClearLibrary() *VideoUpdate {
+	vu.mutation.ClearLibrary()
+	return vu
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -102,6 +128,35 @@ func (vu *VideoUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	}
 	if value, ok := vu.mutation.CreatedAt(); ok {
 		_spec.SetField(video.FieldCreatedAt, field.TypeTime, value)
+	}
+	if vu.mutation.LibraryCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   video.LibraryTable,
+			Columns: []string{video.LibraryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(library.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := vu.mutation.LibraryIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   video.LibraryTable,
+			Columns: []string{video.LibraryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(library.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, vu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -151,9 +206,34 @@ func (vuo *VideoUpdateOne) SetNillableCreatedAt(t *time.Time) *VideoUpdateOne {
 	return vuo
 }
 
+// SetLibraryID sets the "library" edge to the Library entity by ID.
+func (vuo *VideoUpdateOne) SetLibraryID(id int) *VideoUpdateOne {
+	vuo.mutation.SetLibraryID(id)
+	return vuo
+}
+
+// SetNillableLibraryID sets the "library" edge to the Library entity by ID if the given value is not nil.
+func (vuo *VideoUpdateOne) SetNillableLibraryID(id *int) *VideoUpdateOne {
+	if id != nil {
+		vuo = vuo.SetLibraryID(*id)
+	}
+	return vuo
+}
+
+// SetLibrary sets the "library" edge to the Library entity.
+func (vuo *VideoUpdateOne) SetLibrary(l *Library) *VideoUpdateOne {
+	return vuo.SetLibraryID(l.ID)
+}
+
 // Mutation returns the VideoMutation object of the builder.
 func (vuo *VideoUpdateOne) Mutation() *VideoMutation {
 	return vuo.mutation
+}
+
+// ClearLibrary clears the "library" edge to the Library entity.
+func (vuo *VideoUpdateOne) ClearLibrary() *VideoUpdateOne {
+	vuo.mutation.ClearLibrary()
+	return vuo
 }
 
 // Where appends a list predicates to the VideoUpdate builder.
@@ -227,6 +307,35 @@ func (vuo *VideoUpdateOne) sqlSave(ctx context.Context) (_node *Video, err error
 	}
 	if value, ok := vuo.mutation.CreatedAt(); ok {
 		_spec.SetField(video.FieldCreatedAt, field.TypeTime, value)
+	}
+	if vuo.mutation.LibraryCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   video.LibraryTable,
+			Columns: []string{video.LibraryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(library.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := vuo.mutation.LibraryIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   video.LibraryTable,
+			Columns: []string{video.LibraryColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(library.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	_node = &Video{config: vuo.config}
 	_spec.Assign = _node.assignValues

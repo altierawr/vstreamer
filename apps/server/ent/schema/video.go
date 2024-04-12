@@ -6,6 +6,7 @@ import (
 	"entgo.io/contrib/entgql"
 	"entgo.io/ent"
 	"entgo.io/ent/schema"
+	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 )
 
@@ -25,12 +26,16 @@ func (Video) Fields() []ent.Field {
 
 // Edges of the Video.
 func (Video) Edges() []ent.Edge {
-	return nil
+	return []ent.Edge{
+		edge.From("library", Library.Type).
+			Ref("videos").
+			Unique(),
+	}
 }
 
 func (Video) Annotations() []schema.Annotation {
 	return []schema.Annotation{
 		entgql.QueryField(),
-		entgql.Mutations(entgql.MutationCreate()),
+		entgql.Mutations(entgql.MutationCreate(), entgql.MutationUpdate()),
 	}
 }

@@ -14,6 +14,8 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/altierawr/vstreamer/ent/library"
 	"github.com/altierawr/vstreamer/ent/video"
 )
 
@@ -22,6 +24,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// Library is the client for interacting with the Library builders.
+	Library *LibraryClient
 	// Video is the client for interacting with the Video builders.
 	Video *VideoClient
 	// additional fields for node api
@@ -37,6 +41,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.Library = NewLibraryClient(c.config)
 	c.Video = NewVideoClient(c.config)
 }
 
@@ -128,9 +133,10 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:    ctx,
-		config: cfg,
-		Video:  NewVideoClient(cfg),
+		ctx:     ctx,
+		config:  cfg,
+		Library: NewLibraryClient(cfg),
+		Video:   NewVideoClient(cfg),
 	}, nil
 }
 
@@ -148,16 +154,17 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:    ctx,
-		config: cfg,
-		Video:  NewVideoClient(cfg),
+		ctx:     ctx,
+		config:  cfg,
+		Library: NewLibraryClient(cfg),
+		Video:   NewVideoClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Video.
+//		Library.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -179,22 +186,176 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.Library.Use(hooks...)
 	c.Video.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.Library.Intercept(interceptors...)
 	c.Video.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *LibraryMutation:
+		return c.Library.mutate(ctx, m)
 	case *VideoMutation:
 		return c.Video.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// LibraryClient is a client for the Library schema.
+type LibraryClient struct {
+	config
+}
+
+// NewLibraryClient returns a client for the Library from the given config.
+func NewLibraryClient(c config) *LibraryClient {
+	return &LibraryClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `library.Hooks(f(g(h())))`.
+func (c *LibraryClient) Use(hooks ...Hook) {
+	c.hooks.Library = append(c.hooks.Library, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `library.Intercept(f(g(h())))`.
+func (c *LibraryClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Library = append(c.inters.Library, interceptors...)
+}
+
+// Create returns a builder for creating a Library entity.
+func (c *LibraryClient) Create() *LibraryCreate {
+	mutation := newLibraryMutation(c.config, OpCreate)
+	return &LibraryCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Library entities.
+func (c *LibraryClient) CreateBulk(builders ...*LibraryCreate) *LibraryCreateBulk {
+	return &LibraryCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *LibraryClient) MapCreateBulk(slice any, setFunc func(*LibraryCreate, int)) *LibraryCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &LibraryCreateBulk{err: fmt.Errorf("calling to LibraryClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*LibraryCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &LibraryCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Library.
+func (c *LibraryClient) Update() *LibraryUpdate {
+	mutation := newLibraryMutation(c.config, OpUpdate)
+	return &LibraryUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *LibraryClient) UpdateOne(l *Library) *LibraryUpdateOne {
+	mutation := newLibraryMutation(c.config, OpUpdateOne, withLibrary(l))
+	return &LibraryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *LibraryClient) UpdateOneID(id int) *LibraryUpdateOne {
+	mutation := newLibraryMutation(c.config, OpUpdateOne, withLibraryID(id))
+	return &LibraryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Library.
+func (c *LibraryClient) Delete() *LibraryDelete {
+	mutation := newLibraryMutation(c.config, OpDelete)
+	return &LibraryDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *LibraryClient) DeleteOne(l *Library) *LibraryDeleteOne {
+	return c.DeleteOneID(l.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *LibraryClient) DeleteOneID(id int) *LibraryDeleteOne {
+	builder := c.Delete().Where(library.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &LibraryDeleteOne{builder}
+}
+
+// Query returns a query builder for Library.
+func (c *LibraryClient) Query() *LibraryQuery {
+	return &LibraryQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeLibrary},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Library entity by its id.
+func (c *LibraryClient) Get(ctx context.Context, id int) (*Library, error) {
+	return c.Query().Where(library.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *LibraryClient) GetX(ctx context.Context, id int) *Library {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryVideos queries the videos edge of a Library.
+func (c *LibraryClient) QueryVideos(l *Library) *VideoQuery {
+	query := (&VideoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := l.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(library.Table, library.FieldID, id),
+			sqlgraph.To(video.Table, video.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, library.VideosTable, library.VideosColumn),
+		)
+		fromV = sqlgraph.Neighbors(l.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *LibraryClient) Hooks() []Hook {
+	hooks := c.hooks.Library
+	return append(hooks[:len(hooks):len(hooks)], library.Hooks[:]...)
+}
+
+// Interceptors returns the client interceptors.
+func (c *LibraryClient) Interceptors() []Interceptor {
+	return c.inters.Library
+}
+
+func (c *LibraryClient) mutate(ctx context.Context, m *LibraryMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&LibraryCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&LibraryUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&LibraryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&LibraryDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Library mutation op: %q", m.Op())
 	}
 }
 
@@ -306,6 +467,22 @@ func (c *VideoClient) GetX(ctx context.Context, id int) *Video {
 	return obj
 }
 
+// QueryLibrary queries the library edge of a Video.
+func (c *VideoClient) QueryLibrary(v *Video) *LibraryQuery {
+	query := (&LibraryClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := v.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(video.Table, video.FieldID, id),
+			sqlgraph.To(library.Table, library.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, video.LibraryTable, video.LibraryColumn),
+		)
+		fromV = sqlgraph.Neighbors(v.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *VideoClient) Hooks() []Hook {
 	return c.hooks.Video
@@ -334,9 +511,9 @@ func (c *VideoClient) mutate(ctx context.Context, m *VideoMutation) (Value, erro
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Video []ent.Hook
+		Library, Video []ent.Hook
 	}
 	inters struct {
-		Video []ent.Interceptor
+		Library, Video []ent.Interceptor
 	}
 )

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 )
 
 const (
@@ -17,8 +18,17 @@ const (
 	FieldPath = "path"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
+	// EdgeLibrary holds the string denoting the library edge name in mutations.
+	EdgeLibrary = "library"
 	// Table holds the table name of the video in the database.
 	Table = "videos"
+	// LibraryTable is the table that holds the library relation/edge.
+	LibraryTable = "videos"
+	// LibraryInverseTable is the table name for the Library entity.
+	// It exists in this package in order to avoid circular dependency with the "library" package.
+	LibraryInverseTable = "libraries"
+	// LibraryColumn is the table column denoting the library relation/edge.
+	LibraryColumn = "library_videos"
 )
 
 // Columns holds all SQL columns for video fields.
@@ -28,10 +38,21 @@ var Columns = []string{
 	FieldCreatedAt,
 }
 
+// ForeignKeys holds the SQL foreign-keys that are owned by the "videos"
+// table and are not defined as standalone fields in the schema.
+var ForeignKeys = []string{
+	"library_videos",
+}
+
 // ValidColumn reports if the column name is valid (part of the table columns).
 func ValidColumn(column string) bool {
 	for i := range Columns {
 		if column == Columns[i] {
+			return true
+		}
+	}
+	for i := range ForeignKeys {
+		if column == ForeignKeys[i] {
 			return true
 		}
 	}
@@ -59,4 +80,18 @@ func ByPath(opts ...sql.OrderTermOption) OrderOption {
 // ByCreatedAt orders the results by the created_at field.
 func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
+}
+
+// ByLibraryField orders the results by library field.
+func ByLibraryField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newLibraryStep(), sql.OrderByField(field, opts...))
+	}
+}
+func newLibraryStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(LibraryInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, true, LibraryTable, LibraryColumn),
+	)
 }

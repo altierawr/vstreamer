@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/schema"
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/altierawr/vstreamer/ent/library"
 	"github.com/altierawr/vstreamer/ent/video"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/sync/semaphore"
@@ -22,6 +23,11 @@ import (
 type Noder interface {
 	IsNode()
 }
+
+var libraryImplementors = []string{"Library", "Node"}
+
+// IsNode implements the Node interface check for GQLGen.
+func (*Library) IsNode() {}
 
 var videoImplementors = []string{"Video", "Node"}
 
@@ -86,6 +92,15 @@ func (c *Client) Noder(ctx context.Context, id int, opts ...NodeOption) (_ Noder
 
 func (c *Client) noder(ctx context.Context, table string, id int) (Noder, error) {
 	switch table {
+	case library.Table:
+		query := c.Library.Query().
+			Where(library.ID(id))
+		if fc := graphql.GetFieldContext(ctx); fc != nil {
+			if err := query.collectField(ctx, true, graphql.GetOperationContext(ctx), fc.Field, nil, libraryImplementors...); err != nil {
+				return nil, err
+			}
+		}
+		return query.Only(ctx)
 	case video.Table:
 		query := c.Video.Query().
 			Where(video.ID(id))
@@ -168,6 +183,22 @@ func (c *Client) noders(ctx context.Context, table string, ids []int) ([]Noder, 
 		idmap[id] = append(idmap[id], &noders[i])
 	}
 	switch table {
+	case library.Table:
+		query := c.Library.Query().
+			Where(library.IDIn(ids...))
+		query, err := query.CollectFields(ctx, libraryImplementors...)
+		if err != nil {
+			return nil, err
+		}
+		nodes, err := query.All(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, node := range nodes {
+			for _, noder := range idmap[node.ID] {
+				*noder = node
+			}
+		}
 	case video.Table:
 		query := c.Video.Query().
 			Where(video.IDIn(ids...))

@@ -20,6 +20,11 @@ func (r *queryResolver) Nodes(ctx context.Context, ids []int) ([]ent.Noder, erro
 	return r.client.Noders(ctx, ids)
 }
 
+// Libraries is the resolver for the libraries field.
+func (r *queryResolver) Libraries(ctx context.Context) ([]*ent.Library, error) {
+	return r.client.Library.Query().All(ctx)
+}
+
 // Videos is the resolver for the videos field.
 func (r *queryResolver) Videos(ctx context.Context) ([]*ent.Video, error) {
 	return r.client.Video.Query().All(ctx)
