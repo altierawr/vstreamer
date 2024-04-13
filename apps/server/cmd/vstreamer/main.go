@@ -58,7 +58,7 @@ func main() {
 	srv.Use(extension.Introspection{})
 	srv.Use(entgql.Transactioner{TxOpener: client})
 	http.Handle("/",
-		playground.Handler("Notebook", "/query"),
+		playground.Handler("VStreamer", "/query"),
 	)
 	http.Handle("/query", c.Handler(srv))
 	log.Println("listening on :8081")
