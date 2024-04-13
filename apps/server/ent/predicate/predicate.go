@@ -9,5 +9,8 @@ import (
 // Library is the predicate function for library builders.
 type Library func(*sql.Selector)
 
+// PlaySession is the predicate function for playsession builders.
+type PlaySession func(*sql.Selector)
+
 // Video is the predicate function for video builders.
 type Video func(*sql.Selector)

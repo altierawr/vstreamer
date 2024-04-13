@@ -63,9 +63,7 @@ func (lc *LibraryCreate) Mutation() *LibraryMutation {
 
 // Save creates the Library in the database.
 func (lc *LibraryCreate) Save(ctx context.Context) (*Library, error) {
-	if err := lc.defaults(); err != nil {
-		return nil, err
-	}
+	lc.defaults()
 	return withHooks(ctx, lc.sqlSave, lc.mutation, lc.hooks)
 }
 
@@ -92,15 +90,11 @@ func (lc *LibraryCreate) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (lc *LibraryCreate) defaults() error {
+func (lc *LibraryCreate) defaults() {
 	if _, ok := lc.mutation.CreatedAt(); !ok {
-		if library.DefaultCreatedAt == nil {
-			return fmt.Errorf("ent: uninitialized library.DefaultCreatedAt (forgotten import ent/runtime?)")
-		}
 		v := library.DefaultCreatedAt()
 		lc.mutation.SetCreatedAt(v)
 	}
-	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.

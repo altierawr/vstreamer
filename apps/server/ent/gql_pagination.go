@@ -12,6 +12,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/errcode"
 	"github.com/altierawr/vstreamer/ent/library"
+	"github.com/altierawr/vstreamer/ent/playsession"
 	"github.com/altierawr/vstreamer/ent/video"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
@@ -342,6 +343,255 @@ func (l *Library) ToEdge(order *LibraryOrder) *LibraryEdge {
 	return &LibraryEdge{
 		Node:   l,
 		Cursor: order.Field.toCursor(l),
+	}
+}
+
+// PlaySessionEdge is the edge representation of PlaySession.
+type PlaySessionEdge struct {
+	Node   *PlaySession `json:"node"`
+	Cursor Cursor       `json:"cursor"`
+}
+
+// PlaySessionConnection is the connection containing edges to PlaySession.
+type PlaySessionConnection struct {
+	Edges      []*PlaySessionEdge `json:"edges"`
+	PageInfo   PageInfo           `json:"pageInfo"`
+	TotalCount int                `json:"totalCount"`
+}
+
+func (c *PlaySessionConnection) build(nodes []*PlaySession, pager *playsessionPager, after *Cursor, first *int, before *Cursor, last *int) {
+	c.PageInfo.HasNextPage = before != nil
+	c.PageInfo.HasPreviousPage = after != nil
+	if first != nil && *first+1 == len(nodes) {
+		c.PageInfo.HasNextPage = true
+		nodes = nodes[:len(nodes)-1]
+	} else if last != nil && *last+1 == len(nodes) {
+		c.PageInfo.HasPreviousPage = true
+		nodes = nodes[:len(nodes)-1]
+	}
+	var nodeAt func(int) *PlaySession
+	if last != nil {
+		n := len(nodes) - 1
+		nodeAt = func(i int) *PlaySession {
+			return nodes[n-i]
+		}
+	} else {
+		nodeAt = func(i int) *PlaySession {
+			return nodes[i]
+		}
+	}
+	c.Edges = make([]*PlaySessionEdge, len(nodes))
+	for i := range nodes {
+		node := nodeAt(i)
+		c.Edges[i] = &PlaySessionEdge{
+			Node:   node,
+			Cursor: pager.toCursor(node),
+		}
+	}
+	if l := len(c.Edges); l > 0 {
+		c.PageInfo.StartCursor = &c.Edges[0].Cursor
+		c.PageInfo.EndCursor = &c.Edges[l-1].Cursor
+	}
+	if c.TotalCount == 0 {
+		c.TotalCount = len(nodes)
+	}
+}
+
+// PlaySessionPaginateOption enables pagination customization.
+type PlaySessionPaginateOption func(*playsessionPager) error
+
+// WithPlaySessionOrder configures pagination ordering.
+func WithPlaySessionOrder(order *PlaySessionOrder) PlaySessionPaginateOption {
+	if order == nil {
+		order = DefaultPlaySessionOrder
+	}
+	o := *order
+	return func(pager *playsessionPager) error {
+		if err := o.Direction.Validate(); err != nil {
+			return err
+		}
+		if o.Field == nil {
+			o.Field = DefaultPlaySessionOrder.Field
+		}
+		pager.order = &o
+		return nil
+	}
+}
+
+// WithPlaySessionFilter configures pagination filter.
+func WithPlaySessionFilter(filter func(*PlaySessionQuery) (*PlaySessionQuery, error)) PlaySessionPaginateOption {
+	return func(pager *playsessionPager) error {
+		if filter == nil {
+			return errors.New("PlaySessionQuery filter cannot be nil")
+		}
+		pager.filter = filter
+		return nil
+	}
+}
+
+type playsessionPager struct {
+	reverse bool
+	order   *PlaySessionOrder
+	filter  func(*PlaySessionQuery) (*PlaySessionQuery, error)
+}
+
+func newPlaySessionPager(opts []PlaySessionPaginateOption, reverse bool) (*playsessionPager, error) {
+	pager := &playsessionPager{reverse: reverse}
+	for _, opt := range opts {
+		if err := opt(pager); err != nil {
+			return nil, err
+		}
+	}
+	if pager.order == nil {
+		pager.order = DefaultPlaySessionOrder
+	}
+	return pager, nil
+}
+
+func (p *playsessionPager) applyFilter(query *PlaySessionQuery) (*PlaySessionQuery, error) {
+	if p.filter != nil {
+		return p.filter(query)
+	}
+	return query, nil
+}
+
+func (p *playsessionPager) toCursor(ps *PlaySession) Cursor {
+	return p.order.Field.toCursor(ps)
+}
+
+func (p *playsessionPager) applyCursors(query *PlaySessionQuery, after, before *Cursor) (*PlaySessionQuery, error) {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	for _, predicate := range entgql.CursorsPredicate(after, before, DefaultPlaySessionOrder.Field.column, p.order.Field.column, direction) {
+		query = query.Where(predicate)
+	}
+	return query, nil
+}
+
+func (p *playsessionPager) applyOrder(query *PlaySessionQuery) *PlaySessionQuery {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	query = query.Order(p.order.Field.toTerm(direction.OrderTermOption()))
+	if p.order.Field != DefaultPlaySessionOrder.Field {
+		query = query.Order(DefaultPlaySessionOrder.Field.toTerm(direction.OrderTermOption()))
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return query
+}
+
+func (p *playsessionPager) orderExpr(query *PlaySessionQuery) sql.Querier {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return sql.ExprFunc(func(b *sql.Builder) {
+		b.Ident(p.order.Field.column).Pad().WriteString(string(direction))
+		if p.order.Field != DefaultPlaySessionOrder.Field {
+			b.Comma().Ident(DefaultPlaySessionOrder.Field.column).Pad().WriteString(string(direction))
+		}
+	})
+}
+
+// Paginate executes the query and returns a relay based cursor connection to PlaySession.
+func (ps *PlaySessionQuery) Paginate(
+	ctx context.Context, after *Cursor, first *int,
+	before *Cursor, last *int, opts ...PlaySessionPaginateOption,
+) (*PlaySessionConnection, error) {
+	if err := validateFirstLast(first, last); err != nil {
+		return nil, err
+	}
+	pager, err := newPlaySessionPager(opts, last != nil)
+	if err != nil {
+		return nil, err
+	}
+	if ps, err = pager.applyFilter(ps); err != nil {
+		return nil, err
+	}
+	conn := &PlaySessionConnection{Edges: []*PlaySessionEdge{}}
+	ignoredEdges := !hasCollectedField(ctx, edgesField)
+	if hasCollectedField(ctx, totalCountField) || hasCollectedField(ctx, pageInfoField) {
+		hasPagination := after != nil || first != nil || before != nil || last != nil
+		if hasPagination || ignoredEdges {
+			c := ps.Clone()
+			c.ctx.Fields = nil
+			if conn.TotalCount, err = c.Count(ctx); err != nil {
+				return nil, err
+			}
+			conn.PageInfo.HasNextPage = first != nil && conn.TotalCount > 0
+			conn.PageInfo.HasPreviousPage = last != nil && conn.TotalCount > 0
+		}
+	}
+	if ignoredEdges || (first != nil && *first == 0) || (last != nil && *last == 0) {
+		return conn, nil
+	}
+	if ps, err = pager.applyCursors(ps, after, before); err != nil {
+		return nil, err
+	}
+	limit := paginateLimit(first, last)
+	if limit != 0 {
+		ps.Limit(limit)
+	}
+	if field := collectedField(ctx, edgesField, nodeField); field != nil {
+		if err := ps.collectField(ctx, limit == 1, graphql.GetOperationContext(ctx), *field, []string{edgesField, nodeField}); err != nil {
+			return nil, err
+		}
+	}
+	ps = pager.applyOrder(ps)
+	nodes, err := ps.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	conn.build(nodes, pager, after, first, before, last)
+	return conn, nil
+}
+
+// PlaySessionOrderField defines the ordering field of PlaySession.
+type PlaySessionOrderField struct {
+	// Value extracts the ordering value from the given PlaySession.
+	Value    func(*PlaySession) (ent.Value, error)
+	column   string // field or computed.
+	toTerm   func(...sql.OrderTermOption) playsession.OrderOption
+	toCursor func(*PlaySession) Cursor
+}
+
+// PlaySessionOrder defines the ordering of PlaySession.
+type PlaySessionOrder struct {
+	Direction OrderDirection         `json:"direction"`
+	Field     *PlaySessionOrderField `json:"field"`
+}
+
+// DefaultPlaySessionOrder is the default ordering of PlaySession.
+var DefaultPlaySessionOrder = &PlaySessionOrder{
+	Direction: entgql.OrderDirectionAsc,
+	Field: &PlaySessionOrderField{
+		Value: func(ps *PlaySession) (ent.Value, error) {
+			return ps.ID, nil
+		},
+		column: playsession.FieldID,
+		toTerm: playsession.ByID,
+		toCursor: func(ps *PlaySession) Cursor {
+			return Cursor{ID: ps.ID}
+		},
+	},
+}
+
+// ToEdge converts PlaySession into PlaySessionEdge.
+func (ps *PlaySession) ToEdge(order *PlaySessionOrder) *PlaySessionEdge {
+	if order == nil {
+		order = DefaultPlaySessionOrder
+	}
+	return &PlaySessionEdge{
+		Node:   ps,
+		Cursor: order.Field.toCursor(ps),
 	}
 }
 

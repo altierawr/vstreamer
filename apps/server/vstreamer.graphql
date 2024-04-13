@@ -1,4 +1,9 @@
+input CreatePlaySessionInput {
+  videoID: ID!
+}
+
 type Mutation {
   createVideo(input: CreateVideoInput!): Video!
   createLibrary(input: CreateLibraryInput!): Library!
+  createPlaySession(input: CreatePlaySessionInput!): PlaySession!
 }

@@ -5,14 +5,19 @@ import (
 	"log"
 	"net/http"
 
+	"entgo.io/contrib/entgql"
 	"entgo.io/ent/dialect"
 	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/extension"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/altierawr/vstreamer"
 	"github.com/altierawr/vstreamer/ent"
 	"github.com/altierawr/vstreamer/ent/migrate"
+	"github.com/altierawr/vstreamer/hooks"
+	"github.com/gorilla/websocket"
+	"github.com/rs/cors"
 
-	_ "github.com/altierawr/vstreamer/ent/runtime"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -22,19 +27,40 @@ func main() {
 	if err != nil {
 		log.Fatal("opening ent client", err)
 	}
+	ctx := context.Background()
 	if err := client.Schema.Create(
-		context.Background(),
+		ctx,
 		migrate.WithGlobalUniqueID(true),
 	); err != nil {
 		log.Fatal("opening ent client", err)
 	}
 
+	// Register hooks
+	hooks.RegisterLibraryHooks(ctx, client)
+
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:5173"},
+		AllowCredentials: true,
+	})
+
 	// Configure the server and start listening on :8081.
 	srv := handler.NewDefaultServer(vstreamer.NewSchema(client))
+	srv.AddTransport(transport.POST{})
+	srv.AddTransport(&transport.Websocket{
+		Upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		},
+	})
+	srv.Use(extension.Introspection{})
+	srv.Use(entgql.Transactioner{TxOpener: client})
 	http.Handle("/",
-		playground.Handler("VSteamer", "/query"),
+		playground.Handler("Notebook", "/query"),
 	)
-	http.Handle("/query", srv)
+	http.Handle("/query", c.Handler(srv))
 	log.Println("listening on :8081")
 	if err := http.ListenAndServe(":8081", nil); err != nil {
 		log.Fatal("http server terminated", err)

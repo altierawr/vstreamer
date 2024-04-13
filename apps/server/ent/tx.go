@@ -14,6 +14,8 @@ type Tx struct {
 	config
 	// Library is the client for interacting with the Library builders.
 	Library *LibraryClient
+	// PlaySession is the client for interacting with the PlaySession builders.
+	PlaySession *PlaySessionClient
 	// Video is the client for interacting with the Video builders.
 	Video *VideoClient
 
@@ -148,6 +150,7 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.Library = NewLibraryClient(tx.config)
+	tx.PlaySession = NewPlaySessionClient(tx.config)
 	tx.Video = NewVideoClient(tx.config)
 }
 

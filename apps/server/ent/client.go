@@ -16,6 +16,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/altierawr/vstreamer/ent/library"
+	"github.com/altierawr/vstreamer/ent/playsession"
 	"github.com/altierawr/vstreamer/ent/video"
 )
 
@@ -26,6 +27,8 @@ type Client struct {
 	Schema *migrate.Schema
 	// Library is the client for interacting with the Library builders.
 	Library *LibraryClient
+	// PlaySession is the client for interacting with the PlaySession builders.
+	PlaySession *PlaySessionClient
 	// Video is the client for interacting with the Video builders.
 	Video *VideoClient
 	// additional fields for node api
@@ -42,6 +45,7 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Library = NewLibraryClient(c.config)
+	c.PlaySession = NewPlaySessionClient(c.config)
 	c.Video = NewVideoClient(c.config)
 }
 
@@ -133,10 +137,11 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:     ctx,
-		config:  cfg,
-		Library: NewLibraryClient(cfg),
-		Video:   NewVideoClient(cfg),
+		ctx:         ctx,
+		config:      cfg,
+		Library:     NewLibraryClient(cfg),
+		PlaySession: NewPlaySessionClient(cfg),
+		Video:       NewVideoClient(cfg),
 	}, nil
 }
 
@@ -154,10 +159,11 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:     ctx,
-		config:  cfg,
-		Library: NewLibraryClient(cfg),
-		Video:   NewVideoClient(cfg),
+		ctx:         ctx,
+		config:      cfg,
+		Library:     NewLibraryClient(cfg),
+		PlaySession: NewPlaySessionClient(cfg),
+		Video:       NewVideoClient(cfg),
 	}, nil
 }
 
@@ -187,6 +193,7 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	c.Library.Use(hooks...)
+	c.PlaySession.Use(hooks...)
 	c.Video.Use(hooks...)
 }
 
@@ -194,6 +201,7 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.Library.Intercept(interceptors...)
+	c.PlaySession.Intercept(interceptors...)
 	c.Video.Intercept(interceptors...)
 }
 
@@ -202,6 +210,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *LibraryMutation:
 		return c.Library.mutate(ctx, m)
+	case *PlaySessionMutation:
+		return c.PlaySession.mutate(ctx, m)
 	case *VideoMutation:
 		return c.Video.mutate(ctx, m)
 	default:
@@ -335,8 +345,7 @@ func (c *LibraryClient) QueryVideos(l *Library) *VideoQuery {
 
 // Hooks returns the client hooks.
 func (c *LibraryClient) Hooks() []Hook {
-	hooks := c.hooks.Library
-	return append(hooks[:len(hooks):len(hooks)], library.Hooks[:]...)
+	return c.hooks.Library
 }
 
 // Interceptors returns the client interceptors.
@@ -356,6 +365,155 @@ func (c *LibraryClient) mutate(ctx context.Context, m *LibraryMutation) (Value, 
 		return (&LibraryDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Library mutation op: %q", m.Op())
+	}
+}
+
+// PlaySessionClient is a client for the PlaySession schema.
+type PlaySessionClient struct {
+	config
+}
+
+// NewPlaySessionClient returns a client for the PlaySession from the given config.
+func NewPlaySessionClient(c config) *PlaySessionClient {
+	return &PlaySessionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `playsession.Hooks(f(g(h())))`.
+func (c *PlaySessionClient) Use(hooks ...Hook) {
+	c.hooks.PlaySession = append(c.hooks.PlaySession, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `playsession.Intercept(f(g(h())))`.
+func (c *PlaySessionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PlaySession = append(c.inters.PlaySession, interceptors...)
+}
+
+// Create returns a builder for creating a PlaySession entity.
+func (c *PlaySessionClient) Create() *PlaySessionCreate {
+	mutation := newPlaySessionMutation(c.config, OpCreate)
+	return &PlaySessionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PlaySession entities.
+func (c *PlaySessionClient) CreateBulk(builders ...*PlaySessionCreate) *PlaySessionCreateBulk {
+	return &PlaySessionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PlaySessionClient) MapCreateBulk(slice any, setFunc func(*PlaySessionCreate, int)) *PlaySessionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PlaySessionCreateBulk{err: fmt.Errorf("calling to PlaySessionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PlaySessionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PlaySessionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PlaySession.
+func (c *PlaySessionClient) Update() *PlaySessionUpdate {
+	mutation := newPlaySessionMutation(c.config, OpUpdate)
+	return &PlaySessionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PlaySessionClient) UpdateOne(ps *PlaySession) *PlaySessionUpdateOne {
+	mutation := newPlaySessionMutation(c.config, OpUpdateOne, withPlaySession(ps))
+	return &PlaySessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PlaySessionClient) UpdateOneID(id int) *PlaySessionUpdateOne {
+	mutation := newPlaySessionMutation(c.config, OpUpdateOne, withPlaySessionID(id))
+	return &PlaySessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PlaySession.
+func (c *PlaySessionClient) Delete() *PlaySessionDelete {
+	mutation := newPlaySessionMutation(c.config, OpDelete)
+	return &PlaySessionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PlaySessionClient) DeleteOne(ps *PlaySession) *PlaySessionDeleteOne {
+	return c.DeleteOneID(ps.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PlaySessionClient) DeleteOneID(id int) *PlaySessionDeleteOne {
+	builder := c.Delete().Where(playsession.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PlaySessionDeleteOne{builder}
+}
+
+// Query returns a query builder for PlaySession.
+func (c *PlaySessionClient) Query() *PlaySessionQuery {
+	return &PlaySessionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePlaySession},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PlaySession entity by its id.
+func (c *PlaySessionClient) Get(ctx context.Context, id int) (*PlaySession, error) {
+	return c.Query().Where(playsession.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PlaySessionClient) GetX(ctx context.Context, id int) *PlaySession {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryVideo queries the video edge of a PlaySession.
+func (c *PlaySessionClient) QueryVideo(ps *PlaySession) *VideoQuery {
+	query := (&VideoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := ps.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(playsession.Table, playsession.FieldID, id),
+			sqlgraph.To(video.Table, video.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, playsession.VideoTable, playsession.VideoColumn),
+		)
+		fromV = sqlgraph.Neighbors(ps.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *PlaySessionClient) Hooks() []Hook {
+	return c.hooks.PlaySession
+}
+
+// Interceptors returns the client interceptors.
+func (c *PlaySessionClient) Interceptors() []Interceptor {
+	return c.inters.PlaySession
+}
+
+func (c *PlaySessionClient) mutate(ctx context.Context, m *PlaySessionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PlaySessionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PlaySessionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PlaySessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PlaySessionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PlaySession mutation op: %q", m.Op())
 	}
 }
 
@@ -483,6 +641,22 @@ func (c *VideoClient) QueryLibrary(v *Video) *LibraryQuery {
 	return query
 }
 
+// QueryPlaySessions queries the play_sessions edge of a Video.
+func (c *VideoClient) QueryPlaySessions(v *Video) *PlaySessionQuery {
+	query := (&PlaySessionClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := v.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(video.Table, video.FieldID, id),
+			sqlgraph.To(playsession.Table, playsession.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, video.PlaySessionsTable, video.PlaySessionsColumn),
+		)
+		fromV = sqlgraph.Neighbors(v.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *VideoClient) Hooks() []Hook {
 	return c.hooks.Video
@@ -511,9 +685,9 @@ func (c *VideoClient) mutate(ctx context.Context, m *VideoMutation) (Value, erro
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Library, Video []ent.Hook
+		Library, PlaySession, Video []ent.Hook
 	}
 	inters struct {
-		Library, Video []ent.Interceptor
+		Library, PlaySession, Video []ent.Interceptor
 	}
 )

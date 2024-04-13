@@ -20,6 +20,25 @@ var (
 		Columns:    LibrariesColumns,
 		PrimaryKey: []*schema.Column{LibrariesColumns[0]},
 	}
+	// PlaySessionsColumns holds the columns for the "play_sessions" table.
+	PlaySessionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "video_play_sessions", Type: field.TypeInt, Nullable: true},
+	}
+	// PlaySessionsTable holds the schema information for the "play_sessions" table.
+	PlaySessionsTable = &schema.Table{
+		Name:       "play_sessions",
+		Columns:    PlaySessionsColumns,
+		PrimaryKey: []*schema.Column{PlaySessionsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "play_sessions_videos_play_sessions",
+				Columns:    []*schema.Column{PlaySessionsColumns[1]},
+				RefColumns: []*schema.Column{VideosColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+	}
 	// VideosColumns holds the columns for the "videos" table.
 	VideosColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -44,10 +63,12 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		LibrariesTable,
+		PlaySessionsTable,
 		VideosTable,
 	}
 )
 
 func init() {
+	PlaySessionsTable.ForeignKeys[0].RefTable = VideosTable
 	VideosTable.ForeignKeys[0].RefTable = LibrariesTable
 }

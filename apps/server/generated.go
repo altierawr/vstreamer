@@ -57,8 +57,9 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		CreateLibrary func(childComplexity int, input ent.CreateLibraryInput) int
-		CreateVideo   func(childComplexity int, input ent.CreateVideoInput) int
+		CreateLibrary     func(childComplexity int, input ent.CreateLibraryInput) int
+		CreatePlaySession func(childComplexity int, input CreatePlaySessionInput) int
+		CreateVideo       func(childComplexity int, input ent.CreateVideoInput) int
 	}
 
 	PageInfo struct {
@@ -66,6 +67,11 @@ type ComplexityRoot struct {
 		HasNextPage     func(childComplexity int) int
 		HasPreviousPage func(childComplexity int) int
 		StartCursor     func(childComplexity int) int
+	}
+
+	PlaySession struct {
+		ID    func(childComplexity int) int
+		Video func(childComplexity int) int
 	}
 
 	Query struct {
@@ -76,16 +82,18 @@ type ComplexityRoot struct {
 	}
 
 	Video struct {
-		CreatedAt func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Library   func(childComplexity int) int
-		Path      func(childComplexity int) int
+		CreatedAt    func(childComplexity int) int
+		ID           func(childComplexity int) int
+		Library      func(childComplexity int) int
+		Path         func(childComplexity int) int
+		PlaySessions func(childComplexity int) int
 	}
 }
 
 type MutationResolver interface {
 	CreateVideo(ctx context.Context, input ent.CreateVideoInput) (*ent.Video, error)
 	CreateLibrary(ctx context.Context, input ent.CreateLibraryInput) (*ent.Library, error)
+	CreatePlaySession(ctx context.Context, input CreatePlaySessionInput) (*ent.PlaySession, error)
 }
 type QueryResolver interface {
 	Node(ctx context.Context, id int) (ent.Noder, error)
@@ -153,6 +161,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreateLibrary(childComplexity, args["input"].(ent.CreateLibraryInput)), true
 
+	case "Mutation.createPlaySession":
+		if e.complexity.Mutation.CreatePlaySession == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createPlaySession_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreatePlaySession(childComplexity, args["input"].(CreatePlaySessionInput)), true
+
 	case "Mutation.createVideo":
 		if e.complexity.Mutation.CreateVideo == nil {
 			break
@@ -192,6 +212,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.PageInfo.StartCursor(childComplexity), true
+
+	case "PlaySession.id":
+		if e.complexity.PlaySession.ID == nil {
+			break
+		}
+
+		return e.complexity.PlaySession.ID(childComplexity), true
+
+	case "PlaySession.video":
+		if e.complexity.PlaySession.Video == nil {
+			break
+		}
+
+		return e.complexity.PlaySession.Video(childComplexity), true
 
 	case "Query.libraries":
 		if e.complexity.Query.Libraries == nil {
@@ -259,6 +293,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Video.Path(childComplexity), true
 
+	case "Video.playSessions":
+		if e.complexity.Video.PlaySessions == nil {
+			break
+		}
+
+		return e.complexity.Video.PlaySessions(childComplexity), true
+
 	}
 	return 0, false
 }
@@ -268,6 +309,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := executionContext{rc, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputCreateLibraryInput,
+		ec.unmarshalInputCreatePlaySessionInput,
 		ec.unmarshalInputCreateVideoInput,
 		ec.unmarshalInputUpdateLibraryInput,
 		ec.unmarshalInputUpdateVideoInput,
@@ -395,6 +437,21 @@ func (ec *executionContext) field_Mutation_createLibrary_args(ctx context.Contex
 	if tmp, ok := rawArgs["input"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 		arg0, err = ec.unmarshalNCreateLibraryInput2githubᚗcomᚋaltierawrᚋvstreamerᚋentᚐCreateLibraryInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createPlaySession_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 CreatePlaySessionInput
+	if tmp, ok := rawArgs["input"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+		arg0, err = ec.unmarshalNCreatePlaySessionInput2githubᚗcomᚋaltierawrᚋvstreamerᚐCreatePlaySessionInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -677,6 +734,8 @@ func (ec *executionContext) fieldContext_Library_videos(ctx context.Context, fie
 				return ec.fieldContext_Video_createdAt(ctx, field)
 			case "library":
 				return ec.fieldContext_Video_library(ctx, field)
+			case "playSessions":
+				return ec.fieldContext_Video_playSessions(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Video", field.Name)
 		},
@@ -731,6 +790,8 @@ func (ec *executionContext) fieldContext_Mutation_createVideo(ctx context.Contex
 				return ec.fieldContext_Video_createdAt(ctx, field)
 			case "library":
 				return ec.fieldContext_Video_library(ctx, field)
+			case "playSessions":
+				return ec.fieldContext_Video_playSessions(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Video", field.Name)
 		},
@@ -808,6 +869,67 @@ func (ec *executionContext) fieldContext_Mutation_createLibrary(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_createLibrary_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createPlaySession(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_createPlaySession(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CreatePlaySession(rctx, fc.Args["input"].(CreatePlaySessionInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*ent.PlaySession)
+	fc.Result = res
+	return ec.marshalNPlaySession2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐPlaySession(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createPlaySession(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_PlaySession_id(ctx, field)
+			case "video":
+				return ec.fieldContext_PlaySession_video(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PlaySession", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createPlaySession_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -979,6 +1101,103 @@ func (ec *executionContext) fieldContext_PageInfo_endCursor(ctx context.Context,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Cursor does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaySession_id(ctx context.Context, field graphql.CollectedField, obj *ent.PlaySession) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PlaySession_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNID2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PlaySession_id(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaySession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaySession_video(ctx context.Context, field graphql.CollectedField, obj *ent.PlaySession) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PlaySession_video(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Video(ctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*ent.Video)
+	fc.Result = res
+	return ec.marshalOVideo2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐVideo(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PlaySession_video(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaySession",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Video_id(ctx, field)
+			case "path":
+				return ec.fieldContext_Video_path(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Video_createdAt(ctx, field)
+			case "library":
+				return ec.fieldContext_Video_library(ctx, field)
+			case "playSessions":
+				return ec.fieldContext_Video_playSessions(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Video", field.Name)
 		},
 	}
 	return fc, nil
@@ -1192,6 +1411,8 @@ func (ec *executionContext) fieldContext_Query_videos(ctx context.Context, field
 				return ec.fieldContext_Video_createdAt(ctx, field)
 			case "library":
 				return ec.fieldContext_Video_library(ctx, field)
+			case "playSessions":
+				return ec.fieldContext_Video_playSessions(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Video", field.Name)
 		},
@@ -1506,6 +1727,53 @@ func (ec *executionContext) fieldContext_Video_library(ctx context.Context, fiel
 				return ec.fieldContext_Library_videos(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Library", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Video_playSessions(ctx context.Context, field graphql.CollectedField, obj *ent.Video) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Video_playSessions(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PlaySessions(ctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*ent.PlaySession)
+	fc.Result = res
+	return ec.marshalOPlaySession2ᚕᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐPlaySessionᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Video_playSessions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Video",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_PlaySession_id(ctx, field)
+			case "video":
+				return ec.fieldContext_PlaySession_video(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PlaySession", field.Name)
 		},
 	}
 	return fc, nil
@@ -3325,6 +3593,33 @@ func (ec *executionContext) unmarshalInputCreateLibraryInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreatePlaySessionInput(ctx context.Context, obj interface{}) (CreatePlaySessionInput, error) {
+	var it CreatePlaySessionInput
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"videoID"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "videoID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("videoID"))
+			data, err := ec.unmarshalNID2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.VideoID = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateVideoInput(ctx context.Context, obj interface{}) (ent.CreateVideoInput, error) {
 	var it ent.CreateVideoInput
 	asMap := map[string]interface{}{}
@@ -3332,7 +3627,7 @@ func (ec *executionContext) unmarshalInputCreateVideoInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"path", "createdAt", "libraryID"}
+	fieldsInOrder := [...]string{"path", "createdAt", "libraryID", "playSessionIDs"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -3360,6 +3655,13 @@ func (ec *executionContext) unmarshalInputCreateVideoInput(ctx context.Context, 
 				return it, err
 			}
 			it.LibraryID = data
+		case "playSessionIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("playSessionIDs"))
+			data, err := ec.unmarshalOID2ᚕintᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PlaySessionIDs = data
 		}
 	}
 
@@ -3428,7 +3730,7 @@ func (ec *executionContext) unmarshalInputUpdateVideoInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"path", "createdAt", "libraryID", "clearLibrary"}
+	fieldsInOrder := [...]string{"path", "createdAt", "libraryID", "clearLibrary", "addPlaySessionIDs", "removePlaySessionIDs", "clearPlaySessions"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -3463,6 +3765,27 @@ func (ec *executionContext) unmarshalInputUpdateVideoInput(ctx context.Context, 
 				return it, err
 			}
 			it.ClearLibrary = data
+		case "addPlaySessionIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("addPlaySessionIDs"))
+			data, err := ec.unmarshalOID2ᚕintᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AddPlaySessionIDs = data
+		case "removePlaySessionIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("removePlaySessionIDs"))
+			data, err := ec.unmarshalOID2ᚕintᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RemovePlaySessionIDs = data
+		case "clearPlaySessions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearPlaySessions"))
+			data, err := ec.unmarshalOBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearPlaySessions = data
 		}
 	}
 
@@ -3482,6 +3805,11 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 			return graphql.Null
 		}
 		return ec._Library(ctx, sel, obj)
+	case *ent.PlaySession:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._PlaySession(ctx, sel, obj)
 	case *ent.Video:
 		if obj == nil {
 			return graphql.Null
@@ -3611,6 +3939,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createPlaySession":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createPlaySession(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3659,6 +3994,78 @@ func (ec *executionContext) _PageInfo(ctx context.Context, sel ast.SelectionSet,
 			out.Values[i] = ec._PageInfo_startCursor(ctx, field, obj)
 		case "endCursor":
 			out.Values[i] = ec._PageInfo_endCursor(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var playSessionImplementors = []string{"PlaySession", "Node"}
+
+func (ec *executionContext) _PlaySession(ctx context.Context, sel ast.SelectionSet, obj *ent.PlaySession) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, playSessionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PlaySession")
+		case "id":
+			out.Values[i] = ec._PlaySession_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "video":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._PlaySession_video(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3853,6 +4260,39 @@ func (ec *executionContext) _Video(ctx context.Context, sel ast.SelectionSet, ob
 					}
 				}()
 				res = ec._Video_library(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "playSessions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Video_playSessions(ctx, field, obj)
 				return res
 			}
 
@@ -4245,6 +4685,11 @@ func (ec *executionContext) unmarshalNCreateLibraryInput2githubᚗcomᚋaltieraw
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreatePlaySessionInput2githubᚗcomᚋaltierawrᚋvstreamerᚐCreatePlaySessionInput(ctx context.Context, v interface{}) (CreatePlaySessionInput, error) {
+	res, err := ec.unmarshalInputCreatePlaySessionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateVideoInput2githubᚗcomᚋaltierawrᚋvstreamerᚋentᚐCreateVideoInput(ctx context.Context, v interface{}) (ent.CreateVideoInput, error) {
 	res, err := ec.unmarshalInputCreateVideoInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -4391,6 +4836,20 @@ func (ec *executionContext) marshalNNode2ᚕgithubᚗcomᚋaltierawrᚋvstreamer
 	wg.Wait()
 
 	return ret
+}
+
+func (ec *executionContext) marshalNPlaySession2githubᚗcomᚋaltierawrᚋvstreamerᚋentᚐPlaySession(ctx context.Context, sel ast.SelectionSet, v ent.PlaySession) graphql.Marshaler {
+	return ec._PlaySession(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPlaySession2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐPlaySession(ctx context.Context, sel ast.SelectionSet, v *ent.PlaySession) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PlaySession(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
@@ -4844,6 +5303,53 @@ func (ec *executionContext) marshalONode2githubᚗcomᚋaltierawrᚋvstreamerᚋ
 	return ec._Node(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalOPlaySession2ᚕᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐPlaySessionᚄ(ctx context.Context, sel ast.SelectionSet, v []*ent.PlaySession) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNPlaySession2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐPlaySession(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v interface{}) ([]string, error) {
 	if v == nil {
 		return nil, nil
@@ -4959,6 +5465,13 @@ func (ec *executionContext) marshalOVideo2ᚕᚖgithubᚗcomᚋaltierawrᚋvstre
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalOVideo2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐVideo(ctx context.Context, sel ast.SelectionSet, v *ent.Video) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Video(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

@@ -33,11 +33,15 @@ type Video struct {
 type VideoEdges struct {
 	// Library holds the value of the library edge.
 	Library *Library `json:"library,omitempty"`
+	// PlaySessions holds the value of the play_sessions edge.
+	PlaySessions []*PlaySession `json:"play_sessions,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 	// totalCount holds the count of the edges above.
-	totalCount [1]map[string]int
+	totalCount [2]map[string]int
+
+	namedPlaySessions map[string][]*PlaySession
 }
 
 // LibraryOrErr returns the Library value or an error if the edge
@@ -49,6 +53,15 @@ func (e VideoEdges) LibraryOrErr() (*Library, error) {
 		return nil, &NotFoundError{label: library.Label}
 	}
 	return nil, &NotLoadedError{edge: "library"}
+}
+
+// PlaySessionsOrErr returns the PlaySessions value or an error if the edge
+// was not loaded in eager-loading.
+func (e VideoEdges) PlaySessionsOrErr() ([]*PlaySession, error) {
+	if e.loadedTypes[1] {
+		return e.PlaySessions, nil
+	}
+	return nil, &NotLoadedError{edge: "play_sessions"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -122,6 +135,11 @@ func (v *Video) QueryLibrary() *LibraryQuery {
 	return NewVideoClient(v.config).QueryLibrary(v)
 }
 
+// QueryPlaySessions queries the "play_sessions" edge of the Video entity.
+func (v *Video) QueryPlaySessions() *PlaySessionQuery {
+	return NewVideoClient(v.config).QueryPlaySessions(v)
+}
+
 // Update returns a builder for updating this Video.
 // Note that you need to call Video.Unwrap() before calling this method if this Video
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -152,6 +170,30 @@ func (v *Video) String() string {
 	builder.WriteString(v.CreatedAt.Format(time.ANSIC))
 	builder.WriteByte(')')
 	return builder.String()
+}
+
+// NamedPlaySessions returns the PlaySessions named value or an error if the edge was not
+// loaded in eager-loading with this name.
+func (v *Video) NamedPlaySessions(name string) ([]*PlaySession, error) {
+	if v.Edges.namedPlaySessions == nil {
+		return nil, &NotLoadedError{edge: name}
+	}
+	nodes, ok := v.Edges.namedPlaySessions[name]
+	if !ok {
+		return nil, &NotLoadedError{edge: name}
+	}
+	return nodes, nil
+}
+
+func (v *Video) appendNamedPlaySessions(name string, edges ...*PlaySession) {
+	if v.Edges.namedPlaySessions == nil {
+		v.Edges.namedPlaySessions = make(map[string][]*PlaySession)
+	}
+	if len(edges) == 0 {
+		v.Edges.namedPlaySessions[name] = []*PlaySession{}
+	} else {
+		v.Edges.namedPlaySessions[name] = append(v.Edges.namedPlaySessions[name], edges...)
+	}
 }
 
 // Videos is a parsable slice of Video.

@@ -30,6 +30,7 @@ func (Video) Edges() []ent.Edge {
 		edge.From("library", Library.Type).
 			Ref("videos").
 			Unique(),
+		edge.To("play_sessions", PlaySession.Type),
 	}
 }
 

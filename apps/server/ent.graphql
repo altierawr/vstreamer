@@ -17,6 +17,7 @@ input CreateVideoInput {
   path: String!
   createdAt: Time
   libraryID: ID
+  playSessionIDs: [ID!]
 }
 """
 Define a Relay Cursor type:
@@ -74,6 +75,10 @@ type PageInfo {
   """
   endCursor: Cursor
 }
+type PlaySession implements Node {
+  id: ID!
+  video: Video
+}
 type Query {
   """
   Fetches an object given its ID.
@@ -120,10 +125,14 @@ input UpdateVideoInput {
   createdAt: Time
   libraryID: ID
   clearLibrary: Boolean
+  addPlaySessionIDs: [ID!]
+  removePlaySessionIDs: [ID!]
+  clearPlaySessions: Boolean
 }
 type Video implements Node {
   id: ID!
   path: String!
   createdAt: Time!
   library: Library
+  playSessions: [PlaySession!]
 }

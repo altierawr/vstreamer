@@ -20,6 +20,11 @@ func (r *mutationResolver) CreateLibrary(ctx context.Context, input ent.CreateLi
 	return r.client.Library.Create().SetInput(input).Save(ctx)
 }
 
+// CreatePlaySession is the resolver for the createPlaySession field.
+func (r *mutationResolver) CreatePlaySession(ctx context.Context, input CreatePlaySessionInput) (*ent.PlaySession, error) {
+	return r.client.PlaySession.Create().SetVideoID(input.VideoID).Save(ctx)
+}
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 

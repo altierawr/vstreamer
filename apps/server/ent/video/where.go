@@ -193,6 +193,29 @@ func HasLibraryWith(preds ...predicate.Library) predicate.Video {
 	})
 }
 
+// HasPlaySessions applies the HasEdge predicate on the "play_sessions" edge.
+func HasPlaySessions() predicate.Video {
+	return predicate.Video(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, PlaySessionsTable, PlaySessionsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasPlaySessionsWith applies the HasEdge predicate on the "play_sessions" edge with a given conditions (other predicates).
+func HasPlaySessionsWith(preds ...predicate.PlaySession) predicate.Video {
+	return predicate.Video(func(s *sql.Selector) {
+		step := newPlaySessionsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Video) predicate.Video {
 	return predicate.Video(sql.AndPredicates(predicates...))

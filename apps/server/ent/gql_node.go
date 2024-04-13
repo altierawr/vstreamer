@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/dialect/sql/schema"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/altierawr/vstreamer/ent/library"
+	"github.com/altierawr/vstreamer/ent/playsession"
 	"github.com/altierawr/vstreamer/ent/video"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/sync/semaphore"
@@ -28,6 +29,11 @@ var libraryImplementors = []string{"Library", "Node"}
 
 // IsNode implements the Node interface check for GQLGen.
 func (*Library) IsNode() {}
+
+var playsessionImplementors = []string{"PlaySession", "Node"}
+
+// IsNode implements the Node interface check for GQLGen.
+func (*PlaySession) IsNode() {}
 
 var videoImplementors = []string{"Video", "Node"}
 
@@ -97,6 +103,15 @@ func (c *Client) noder(ctx context.Context, table string, id int) (Noder, error)
 			Where(library.ID(id))
 		if fc := graphql.GetFieldContext(ctx); fc != nil {
 			if err := query.collectField(ctx, true, graphql.GetOperationContext(ctx), fc.Field, nil, libraryImplementors...); err != nil {
+				return nil, err
+			}
+		}
+		return query.Only(ctx)
+	case playsession.Table:
+		query := c.PlaySession.Query().
+			Where(playsession.ID(id))
+		if fc := graphql.GetFieldContext(ctx); fc != nil {
+			if err := query.collectField(ctx, true, graphql.GetOperationContext(ctx), fc.Field, nil, playsessionImplementors...); err != nil {
 				return nil, err
 			}
 		}
@@ -187,6 +202,22 @@ func (c *Client) noders(ctx context.Context, table string, ids []int) ([]Noder, 
 		query := c.Library.Query().
 			Where(library.IDIn(ids...))
 		query, err := query.CollectFields(ctx, libraryImplementors...)
+		if err != nil {
+			return nil, err
+		}
+		nodes, err := query.All(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, node := range nodes {
+			for _, noder := range idmap[node.ID] {
+				*noder = node
+			}
+		}
+	case playsession.Table:
+		query := c.PlaySession.Query().
+			Where(playsession.IDIn(ids...))
+		query, err := query.CollectFields(ctx, playsessionImplementors...)
 		if err != nil {
 			return nil, err
 		}

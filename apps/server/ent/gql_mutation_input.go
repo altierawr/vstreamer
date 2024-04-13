@@ -72,9 +72,10 @@ func (c *LibraryUpdateOne) SetInput(i UpdateLibraryInput) *LibraryUpdateOne {
 
 // CreateVideoInput represents a mutation input for creating videos.
 type CreateVideoInput struct {
-	Path      string
-	CreatedAt *time.Time
-	LibraryID *int
+	Path           string
+	CreatedAt      *time.Time
+	LibraryID      *int
+	PlaySessionIDs []int
 }
 
 // Mutate applies the CreateVideoInput on the VideoMutation builder.
@@ -86,6 +87,9 @@ func (i *CreateVideoInput) Mutate(m *VideoMutation) {
 	if v := i.LibraryID; v != nil {
 		m.SetLibraryID(*v)
 	}
+	if v := i.PlaySessionIDs; len(v) > 0 {
+		m.AddPlaySessionIDs(v...)
+	}
 }
 
 // SetInput applies the change-set in the CreateVideoInput on the VideoCreate builder.
@@ -96,10 +100,13 @@ func (c *VideoCreate) SetInput(i CreateVideoInput) *VideoCreate {
 
 // UpdateVideoInput represents a mutation input for updating videos.
 type UpdateVideoInput struct {
-	Path         *string
-	CreatedAt    *time.Time
-	ClearLibrary bool
-	LibraryID    *int
+	Path                 *string
+	CreatedAt            *time.Time
+	ClearLibrary         bool
+	LibraryID            *int
+	ClearPlaySessions    bool
+	AddPlaySessionIDs    []int
+	RemovePlaySessionIDs []int
 }
 
 // Mutate applies the UpdateVideoInput on the VideoMutation builder.
@@ -115,6 +122,15 @@ func (i *UpdateVideoInput) Mutate(m *VideoMutation) {
 	}
 	if v := i.LibraryID; v != nil {
 		m.SetLibraryID(*v)
+	}
+	if i.ClearPlaySessions {
+		m.ClearPlaySessions()
+	}
+	if v := i.AddPlaySessionIDs; len(v) > 0 {
+		m.AddPlaySessionIDs(v...)
+	}
+	if v := i.RemovePlaySessionIDs; len(v) > 0 {
+		m.RemovePlaySessionIDs(v...)
 	}
 }
 

@@ -93,6 +93,64 @@ func newLibraryPaginateArgs(rv map[string]any) *libraryPaginateArgs {
 }
 
 // CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
+func (ps *PlaySessionQuery) CollectFields(ctx context.Context, satisfies ...string) (*PlaySessionQuery, error) {
+	fc := graphql.GetFieldContext(ctx)
+	if fc == nil {
+		return ps, nil
+	}
+	if err := ps.collectField(ctx, false, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+		return nil, err
+	}
+	return ps, nil
+}
+
+func (ps *PlaySessionQuery) collectField(ctx context.Context, oneNode bool, opCtx *graphql.OperationContext, collected graphql.CollectedField, path []string, satisfies ...string) error {
+	path = append([]string(nil), path...)
+	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
+		switch field.Name {
+
+		case "video":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&VideoClient{config: ps.config}).Query()
+			)
+			if err := query.collectField(ctx, oneNode, opCtx, field, path, mayAddCondition(satisfies, videoImplementors)...); err != nil {
+				return err
+			}
+			ps.withVideo = query
+		}
+	}
+	return nil
+}
+
+type playsessionPaginateArgs struct {
+	first, last   *int
+	after, before *Cursor
+	opts          []PlaySessionPaginateOption
+}
+
+func newPlaySessionPaginateArgs(rv map[string]any) *playsessionPaginateArgs {
+	args := &playsessionPaginateArgs{}
+	if rv == nil {
+		return args
+	}
+	if v := rv[firstField]; v != nil {
+		args.first = v.(*int)
+	}
+	if v := rv[lastField]; v != nil {
+		args.last = v.(*int)
+	}
+	if v := rv[afterField]; v != nil {
+		args.after = v.(*Cursor)
+	}
+	if v := rv[beforeField]; v != nil {
+		args.before = v.(*Cursor)
+	}
+	return args
+}
+
+// CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
 func (v *VideoQuery) CollectFields(ctx context.Context, satisfies ...string) (*VideoQuery, error) {
 	fc := graphql.GetFieldContext(ctx)
 	if fc == nil {
@@ -124,6 +182,19 @@ func (v *VideoQuery) collectField(ctx context.Context, oneNode bool, opCtx *grap
 				return err
 			}
 			v.withLibrary = query
+
+		case "playSessions":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&PlaySessionClient{config: v.config}).Query()
+			)
+			if err := query.collectField(ctx, false, opCtx, field, path, mayAddCondition(satisfies, playsessionImplementors)...); err != nil {
+				return err
+			}
+			v.WithNamedPlaySessions(alias, func(wq *PlaySessionQuery) {
+				*wq = *query
+			})
 		case "path":
 			if _, ok := fieldSeen[video.FieldPath]; !ok {
 				selectedFields = append(selectedFields, video.FieldPath)

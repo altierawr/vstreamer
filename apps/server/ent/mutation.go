@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/altierawr/vstreamer/ent/library"
+	"github.com/altierawr/vstreamer/ent/playsession"
 	"github.com/altierawr/vstreamer/ent/predicate"
 	"github.com/altierawr/vstreamer/ent/video"
 )
@@ -25,8 +26,9 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeLibrary = "Library"
-	TypeVideo   = "Video"
+	TypeLibrary     = "Library"
+	TypePlaySession = "PlaySession"
+	TypeVideo       = "Video"
 )
 
 // LibraryMutation represents an operation that mutates the Library nodes in the graph.
@@ -502,20 +504,354 @@ func (m *LibraryMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Library edge %s", name)
 }
 
+// PlaySessionMutation represents an operation that mutates the PlaySession nodes in the graph.
+type PlaySessionMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	clearedFields map[string]struct{}
+	video         *int
+	clearedvideo  bool
+	done          bool
+	oldValue      func(context.Context) (*PlaySession, error)
+	predicates    []predicate.PlaySession
+}
+
+var _ ent.Mutation = (*PlaySessionMutation)(nil)
+
+// playsessionOption allows management of the mutation configuration using functional options.
+type playsessionOption func(*PlaySessionMutation)
+
+// newPlaySessionMutation creates new mutation for the PlaySession entity.
+func newPlaySessionMutation(c config, op Op, opts ...playsessionOption) *PlaySessionMutation {
+	m := &PlaySessionMutation{
+		config:        c,
+		op:            op,
+		typ:           TypePlaySession,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withPlaySessionID sets the ID field of the mutation.
+func withPlaySessionID(id int) playsessionOption {
+	return func(m *PlaySessionMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *PlaySession
+		)
+		m.oldValue = func(ctx context.Context) (*PlaySession, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().PlaySession.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withPlaySession sets the old PlaySession of the mutation.
+func withPlaySession(node *PlaySession) playsessionOption {
+	return func(m *PlaySessionMutation) {
+		m.oldValue = func(context.Context) (*PlaySession, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m PlaySessionMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m PlaySessionMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *PlaySessionMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *PlaySessionMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().PlaySession.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetVideoID sets the "video" edge to the Video entity by id.
+func (m *PlaySessionMutation) SetVideoID(id int) {
+	m.video = &id
+}
+
+// ClearVideo clears the "video" edge to the Video entity.
+func (m *PlaySessionMutation) ClearVideo() {
+	m.clearedvideo = true
+}
+
+// VideoCleared reports if the "video" edge to the Video entity was cleared.
+func (m *PlaySessionMutation) VideoCleared() bool {
+	return m.clearedvideo
+}
+
+// VideoID returns the "video" edge ID in the mutation.
+func (m *PlaySessionMutation) VideoID() (id int, exists bool) {
+	if m.video != nil {
+		return *m.video, true
+	}
+	return
+}
+
+// VideoIDs returns the "video" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// VideoID instead. It exists only for internal usage by the builders.
+func (m *PlaySessionMutation) VideoIDs() (ids []int) {
+	if id := m.video; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetVideo resets all changes to the "video" edge.
+func (m *PlaySessionMutation) ResetVideo() {
+	m.video = nil
+	m.clearedvideo = false
+}
+
+// Where appends a list predicates to the PlaySessionMutation builder.
+func (m *PlaySessionMutation) Where(ps ...predicate.PlaySession) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the PlaySessionMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *PlaySessionMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.PlaySession, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *PlaySessionMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *PlaySessionMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (PlaySession).
+func (m *PlaySessionMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *PlaySessionMutation) Fields() []string {
+	fields := make([]string, 0, 0)
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *PlaySessionMutation) Field(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *PlaySessionMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	return nil, fmt.Errorf("unknown PlaySession field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PlaySessionMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown PlaySession field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *PlaySessionMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *PlaySessionMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PlaySessionMutation) AddField(name string, value ent.Value) error {
+	return fmt.Errorf("unknown PlaySession numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *PlaySessionMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *PlaySessionMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *PlaySessionMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown PlaySession nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *PlaySessionMutation) ResetField(name string) error {
+	return fmt.Errorf("unknown PlaySession field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *PlaySessionMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.video != nil {
+		edges = append(edges, playsession.EdgeVideo)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *PlaySessionMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case playsession.EdgeVideo:
+		if id := m.video; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *PlaySessionMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *PlaySessionMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *PlaySessionMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedvideo {
+		edges = append(edges, playsession.EdgeVideo)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *PlaySessionMutation) EdgeCleared(name string) bool {
+	switch name {
+	case playsession.EdgeVideo:
+		return m.clearedvideo
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *PlaySessionMutation) ClearEdge(name string) error {
+	switch name {
+	case playsession.EdgeVideo:
+		m.ClearVideo()
+		return nil
+	}
+	return fmt.Errorf("unknown PlaySession unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *PlaySessionMutation) ResetEdge(name string) error {
+	switch name {
+	case playsession.EdgeVideo:
+		m.ResetVideo()
+		return nil
+	}
+	return fmt.Errorf("unknown PlaySession edge %s", name)
+}
+
 // VideoMutation represents an operation that mutates the Video nodes in the graph.
 type VideoMutation struct {
 	config
-	op             Op
-	typ            string
-	id             *int
-	_path          *string
-	created_at     *time.Time
-	clearedFields  map[string]struct{}
-	library        *int
-	clearedlibrary bool
-	done           bool
-	oldValue       func(context.Context) (*Video, error)
-	predicates     []predicate.Video
+	op                   Op
+	typ                  string
+	id                   *int
+	_path                *string
+	created_at           *time.Time
+	clearedFields        map[string]struct{}
+	library              *int
+	clearedlibrary       bool
+	play_sessions        map[int]struct{}
+	removedplay_sessions map[int]struct{}
+	clearedplay_sessions bool
+	done                 bool
+	oldValue             func(context.Context) (*Video, error)
+	predicates           []predicate.Video
 }
 
 var _ ent.Mutation = (*VideoMutation)(nil)
@@ -727,6 +1063,60 @@ func (m *VideoMutation) ResetLibrary() {
 	m.clearedlibrary = false
 }
 
+// AddPlaySessionIDs adds the "play_sessions" edge to the PlaySession entity by ids.
+func (m *VideoMutation) AddPlaySessionIDs(ids ...int) {
+	if m.play_sessions == nil {
+		m.play_sessions = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.play_sessions[ids[i]] = struct{}{}
+	}
+}
+
+// ClearPlaySessions clears the "play_sessions" edge to the PlaySession entity.
+func (m *VideoMutation) ClearPlaySessions() {
+	m.clearedplay_sessions = true
+}
+
+// PlaySessionsCleared reports if the "play_sessions" edge to the PlaySession entity was cleared.
+func (m *VideoMutation) PlaySessionsCleared() bool {
+	return m.clearedplay_sessions
+}
+
+// RemovePlaySessionIDs removes the "play_sessions" edge to the PlaySession entity by IDs.
+func (m *VideoMutation) RemovePlaySessionIDs(ids ...int) {
+	if m.removedplay_sessions == nil {
+		m.removedplay_sessions = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.play_sessions, ids[i])
+		m.removedplay_sessions[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedPlaySessions returns the removed IDs of the "play_sessions" edge to the PlaySession entity.
+func (m *VideoMutation) RemovedPlaySessionsIDs() (ids []int) {
+	for id := range m.removedplay_sessions {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// PlaySessionsIDs returns the "play_sessions" edge IDs in the mutation.
+func (m *VideoMutation) PlaySessionsIDs() (ids []int) {
+	for id := range m.play_sessions {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetPlaySessions resets all changes to the "play_sessions" edge.
+func (m *VideoMutation) ResetPlaySessions() {
+	m.play_sessions = nil
+	m.clearedplay_sessions = false
+	m.removedplay_sessions = nil
+}
+
 // Where appends a list predicates to the VideoMutation builder.
 func (m *VideoMutation) Where(ps ...predicate.Video) {
 	m.predicates = append(m.predicates, ps...)
@@ -877,9 +1267,12 @@ func (m *VideoMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *VideoMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.library != nil {
 		edges = append(edges, video.EdgeLibrary)
+	}
+	if m.play_sessions != nil {
+		edges = append(edges, video.EdgePlaySessions)
 	}
 	return edges
 }
@@ -892,27 +1285,47 @@ func (m *VideoMutation) AddedIDs(name string) []ent.Value {
 		if id := m.library; id != nil {
 			return []ent.Value{*id}
 		}
+	case video.EdgePlaySessions:
+		ids := make([]ent.Value, 0, len(m.play_sessions))
+		for id := range m.play_sessions {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *VideoMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
+	if m.removedplay_sessions != nil {
+		edges = append(edges, video.EdgePlaySessions)
+	}
 	return edges
 }
 
 // RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
 // the given name in this mutation.
 func (m *VideoMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case video.EdgePlaySessions:
+		ids := make([]ent.Value, 0, len(m.removedplay_sessions))
+		for id := range m.removedplay_sessions {
+			ids = append(ids, id)
+		}
+		return ids
+	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *VideoMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.clearedlibrary {
 		edges = append(edges, video.EdgeLibrary)
+	}
+	if m.clearedplay_sessions {
+		edges = append(edges, video.EdgePlaySessions)
 	}
 	return edges
 }
@@ -923,6 +1336,8 @@ func (m *VideoMutation) EdgeCleared(name string) bool {
 	switch name {
 	case video.EdgeLibrary:
 		return m.clearedlibrary
+	case video.EdgePlaySessions:
+		return m.clearedplay_sessions
 	}
 	return false
 }
@@ -944,6 +1359,9 @@ func (m *VideoMutation) ResetEdge(name string) error {
 	switch name {
 	case video.EdgeLibrary:
 		m.ResetLibrary()
+		return nil
+	case video.EdgePlaySessions:
+		m.ResetPlaySessions()
 		return nil
 	}
 	return fmt.Errorf("unknown Video edge %s", name)

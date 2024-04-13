@@ -21,6 +21,18 @@ func (f LibraryFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LibraryMutation", m)
 }
 
+// The PlaySessionFunc type is an adapter to allow the use of ordinary
+// function as PlaySession mutator.
+type PlaySessionFunc func(context.Context, *ent.PlaySessionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PlaySessionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PlaySessionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PlaySessionMutation", m)
+}
+
 // The VideoFunc type is an adapter to allow the use of ordinary
 // function as Video mutator.
 type VideoFunc func(context.Context, *ent.VideoMutation) (ent.Value, error)

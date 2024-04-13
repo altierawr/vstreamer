@@ -20,10 +20,30 @@ func (l *Library) Videos(ctx context.Context) (result []*Video, err error) {
 	return result, err
 }
 
+func (ps *PlaySession) Video(ctx context.Context) (*Video, error) {
+	result, err := ps.Edges.VideoOrErr()
+	if IsNotLoaded(err) {
+		result, err = ps.QueryVideo().Only(ctx)
+	}
+	return result, MaskNotFound(err)
+}
+
 func (v *Video) Library(ctx context.Context) (*Library, error) {
 	result, err := v.Edges.LibraryOrErr()
 	if IsNotLoaded(err) {
 		result, err = v.QueryLibrary().Only(ctx)
 	}
 	return result, MaskNotFound(err)
+}
+
+func (v *Video) PlaySessions(ctx context.Context) (result []*PlaySession, err error) {
+	if fc := graphql.GetFieldContext(ctx); fc != nil && fc.Field.Alias != "" {
+		result, err = v.NamedPlaySessions(graphql.GetFieldContext(ctx).Field.Alias)
+	} else {
+		result, err = v.Edges.PlaySessionsOrErr()
+	}
+	if IsNotLoaded(err) {
+		result, err = v.QueryPlaySessions().All(ctx)
+	}
+	return result, err
 }

@@ -4,6 +4,7 @@ package ent
 
 import (
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"math"
 
@@ -11,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/altierawr/vstreamer/ent/library"
+	"github.com/altierawr/vstreamer/ent/playsession"
 	"github.com/altierawr/vstreamer/ent/predicate"
 	"github.com/altierawr/vstreamer/ent/video"
 )
@@ -18,14 +20,16 @@ import (
 // VideoQuery is the builder for querying Video entities.
 type VideoQuery struct {
 	config
-	ctx         *QueryContext
-	order       []video.OrderOption
-	inters      []Interceptor
-	predicates  []predicate.Video
-	withLibrary *LibraryQuery
-	withFKs     bool
-	modifiers   []func(*sql.Selector)
-	loadTotal   []func(context.Context, []*Video) error
+	ctx                   *QueryContext
+	order                 []video.OrderOption
+	inters                []Interceptor
+	predicates            []predicate.Video
+	withLibrary           *LibraryQuery
+	withPlaySessions      *PlaySessionQuery
+	withFKs               bool
+	modifiers             []func(*sql.Selector)
+	loadTotal             []func(context.Context, []*Video) error
+	withNamedPlaySessions map[string]*PlaySessionQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -77,6 +81,28 @@ func (vq *VideoQuery) QueryLibrary() *LibraryQuery {
 			sqlgraph.From(video.Table, video.FieldID, selector),
 			sqlgraph.To(library.Table, library.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, video.LibraryTable, video.LibraryColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(vq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryPlaySessions chains the current query on the "play_sessions" edge.
+func (vq *VideoQuery) QueryPlaySessions() *PlaySessionQuery {
+	query := (&PlaySessionClient{config: vq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := vq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := vq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(video.Table, video.FieldID, selector),
+			sqlgraph.To(playsession.Table, playsession.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, video.PlaySessionsTable, video.PlaySessionsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(vq.driver.Dialect(), step)
 		return fromU, nil
@@ -271,12 +297,13 @@ func (vq *VideoQuery) Clone() *VideoQuery {
 		return nil
 	}
 	return &VideoQuery{
-		config:      vq.config,
-		ctx:         vq.ctx.Clone(),
-		order:       append([]video.OrderOption{}, vq.order...),
-		inters:      append([]Interceptor{}, vq.inters...),
-		predicates:  append([]predicate.Video{}, vq.predicates...),
-		withLibrary: vq.withLibrary.Clone(),
+		config:           vq.config,
+		ctx:              vq.ctx.Clone(),
+		order:            append([]video.OrderOption{}, vq.order...),
+		inters:           append([]Interceptor{}, vq.inters...),
+		predicates:       append([]predicate.Video{}, vq.predicates...),
+		withLibrary:      vq.withLibrary.Clone(),
+		withPlaySessions: vq.withPlaySessions.Clone(),
 		// clone intermediate query.
 		sql:  vq.sql.Clone(),
 		path: vq.path,
@@ -291,6 +318,17 @@ func (vq *VideoQuery) WithLibrary(opts ...func(*LibraryQuery)) *VideoQuery {
 		opt(query)
 	}
 	vq.withLibrary = query
+	return vq
+}
+
+// WithPlaySessions tells the query-builder to eager-load the nodes that are connected to
+// the "play_sessions" edge. The optional arguments are used to configure the query builder of the edge.
+func (vq *VideoQuery) WithPlaySessions(opts ...func(*PlaySessionQuery)) *VideoQuery {
+	query := (&PlaySessionClient{config: vq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	vq.withPlaySessions = query
 	return vq
 }
 
@@ -373,8 +411,9 @@ func (vq *VideoQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Video,
 		nodes       = []*Video{}
 		withFKs     = vq.withFKs
 		_spec       = vq.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
 			vq.withLibrary != nil,
+			vq.withPlaySessions != nil,
 		}
 	)
 	if vq.withLibrary != nil {
@@ -407,6 +446,20 @@ func (vq *VideoQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Video,
 	if query := vq.withLibrary; query != nil {
 		if err := vq.loadLibrary(ctx, query, nodes, nil,
 			func(n *Video, e *Library) { n.Edges.Library = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := vq.withPlaySessions; query != nil {
+		if err := vq.loadPlaySessions(ctx, query, nodes,
+			func(n *Video) { n.Edges.PlaySessions = []*PlaySession{} },
+			func(n *Video, e *PlaySession) { n.Edges.PlaySessions = append(n.Edges.PlaySessions, e) }); err != nil {
+			return nil, err
+		}
+	}
+	for name, query := range vq.withNamedPlaySessions {
+		if err := vq.loadPlaySessions(ctx, query, nodes,
+			func(n *Video) { n.appendNamedPlaySessions(name) },
+			func(n *Video, e *PlaySession) { n.appendNamedPlaySessions(name, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -447,6 +500,37 @@ func (vq *VideoQuery) loadLibrary(ctx context.Context, query *LibraryQuery, node
 		for i := range nodes {
 			assign(nodes[i], n)
 		}
+	}
+	return nil
+}
+func (vq *VideoQuery) loadPlaySessions(ctx context.Context, query *PlaySessionQuery, nodes []*Video, init func(*Video), assign func(*Video, *PlaySession)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*Video)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.PlaySession(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(video.PlaySessionsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.video_play_sessions
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "video_play_sessions" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "video_play_sessions" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
 	}
 	return nil
 }
@@ -533,6 +617,20 @@ func (vq *VideoQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		selector.Limit(*limit)
 	}
 	return selector
+}
+
+// WithNamedPlaySessions tells the query-builder to eager-load the nodes that are connected to the "play_sessions"
+// edge with the given name. The optional arguments are used to configure the query builder of the edge.
+func (vq *VideoQuery) WithNamedPlaySessions(name string, opts ...func(*PlaySessionQuery)) *VideoQuery {
+	query := (&PlaySessionClient{config: vq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	if vq.withNamedPlaySessions == nil {
+		vq.withNamedPlaySessions = make(map[string]*PlaySessionQuery)
+	}
+	vq.withNamedPlaySessions[name] = query
+	return vq
 }
 
 // VideoGroupBy is the group-by builder for Video entities.
