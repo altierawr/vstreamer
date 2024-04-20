@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/altierawr/vstreamer/ent"
 	"github.com/altierawr/vstreamer/ent/migrate"
 	"github.com/altierawr/vstreamer/hooks"
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/rs/cors"
 
@@ -37,6 +39,17 @@ func main() {
 
 	// Register hooks
 	hooks.RegisterLibraryHooks(ctx, client)
+	hooks.RegisterPlaySessionHooks(ctx, client)
+
+	router := gin.Default()
+	router.GET("/session/:sessionid/stream/:streamid/:file", func(c *gin.Context) {
+		sessionId := c.Param("sessionid")
+		streamId := c.Param("streamid")
+		file := c.Param("file")
+
+		fmt.Printf("%s, %s, %s\n", sessionId, streamId, file)
+		c.String(http.StatusOK, "yello")
+	})
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:5173"},
@@ -61,6 +74,9 @@ func main() {
 		playground.Handler("VStreamer", "/query"),
 	)
 	http.Handle("/query", c.Handler(srv))
+	go func() {
+		router.Run(":8080")
+	}()
 	log.Println("listening on :8081")
 	if err := http.ListenAndServe(":8081", nil); err != nil {
 		log.Fatal("http server terminated", err)

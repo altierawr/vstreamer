@@ -9,6 +9,18 @@ import (
 	"github.com/altierawr/vstreamer/ent"
 )
 
+// The AudioTrackFunc type is an adapter to allow the use of ordinary
+// function as AudioTrack mutator.
+type AudioTrackFunc func(context.Context, *ent.AudioTrackMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AudioTrackFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AudioTrackMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AudioTrackMutation", m)
+}
+
 // The LibraryFunc type is an adapter to allow the use of ordinary
 // function as Library mutator.
 type LibraryFunc func(context.Context, *ent.LibraryMutation) (ent.Value, error)
@@ -31,6 +43,42 @@ func (f PlaySessionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PlaySessionMutation", m)
+}
+
+// The PlaySessionMediaFunc type is an adapter to allow the use of ordinary
+// function as PlaySessionMedia mutator.
+type PlaySessionMediaFunc func(context.Context, *ent.PlaySessionMediaMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PlaySessionMediaFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PlaySessionMediaMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PlaySessionMediaMutation", m)
+}
+
+// The PlaybackClientFunc type is an adapter to allow the use of ordinary
+// function as PlaybackClient mutator.
+type PlaybackClientFunc func(context.Context, *ent.PlaybackClientMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PlaybackClientFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PlaybackClientMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PlaybackClientMutation", m)
+}
+
+// The StreamFunc type is an adapter to allow the use of ordinary
+// function as Stream mutator.
+type StreamFunc func(context.Context, *ent.StreamMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f StreamFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.StreamMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.StreamMutation", m)
 }
 
 // The VideoFunc type is an adapter to allow the use of ordinary

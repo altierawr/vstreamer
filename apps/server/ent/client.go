@@ -15,8 +15,12 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/library"
+	"github.com/altierawr/vstreamer/ent/playbackclient"
 	"github.com/altierawr/vstreamer/ent/playsession"
+	"github.com/altierawr/vstreamer/ent/playsessionmedia"
+	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/video"
 )
 
@@ -25,10 +29,18 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// AudioTrack is the client for interacting with the AudioTrack builders.
+	AudioTrack *AudioTrackClient
 	// Library is the client for interacting with the Library builders.
 	Library *LibraryClient
 	// PlaySession is the client for interacting with the PlaySession builders.
 	PlaySession *PlaySessionClient
+	// PlaySessionMedia is the client for interacting with the PlaySessionMedia builders.
+	PlaySessionMedia *PlaySessionMediaClient
+	// PlaybackClient is the client for interacting with the PlaybackClient builders.
+	PlaybackClient *PlaybackClientClient
+	// Stream is the client for interacting with the Stream builders.
+	Stream *StreamClient
 	// Video is the client for interacting with the Video builders.
 	Video *VideoClient
 	// additional fields for node api
@@ -44,8 +56,12 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.AudioTrack = NewAudioTrackClient(c.config)
 	c.Library = NewLibraryClient(c.config)
 	c.PlaySession = NewPlaySessionClient(c.config)
+	c.PlaySessionMedia = NewPlaySessionMediaClient(c.config)
+	c.PlaybackClient = NewPlaybackClientClient(c.config)
+	c.Stream = NewStreamClient(c.config)
 	c.Video = NewVideoClient(c.config)
 }
 
@@ -137,11 +153,15 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:         ctx,
-		config:      cfg,
-		Library:     NewLibraryClient(cfg),
-		PlaySession: NewPlaySessionClient(cfg),
-		Video:       NewVideoClient(cfg),
+		ctx:              ctx,
+		config:           cfg,
+		AudioTrack:       NewAudioTrackClient(cfg),
+		Library:          NewLibraryClient(cfg),
+		PlaySession:      NewPlaySessionClient(cfg),
+		PlaySessionMedia: NewPlaySessionMediaClient(cfg),
+		PlaybackClient:   NewPlaybackClientClient(cfg),
+		Stream:           NewStreamClient(cfg),
+		Video:            NewVideoClient(cfg),
 	}, nil
 }
 
@@ -159,18 +179,22 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:         ctx,
-		config:      cfg,
-		Library:     NewLibraryClient(cfg),
-		PlaySession: NewPlaySessionClient(cfg),
-		Video:       NewVideoClient(cfg),
+		ctx:              ctx,
+		config:           cfg,
+		AudioTrack:       NewAudioTrackClient(cfg),
+		Library:          NewLibraryClient(cfg),
+		PlaySession:      NewPlaySessionClient(cfg),
+		PlaySessionMedia: NewPlaySessionMediaClient(cfg),
+		PlaybackClient:   NewPlaybackClientClient(cfg),
+		Stream:           NewStreamClient(cfg),
+		Video:            NewVideoClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Library.
+//		AudioTrack.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -192,30 +216,193 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.Library.Use(hooks...)
-	c.PlaySession.Use(hooks...)
-	c.Video.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.AudioTrack, c.Library, c.PlaySession, c.PlaySessionMedia, c.PlaybackClient,
+		c.Stream, c.Video,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.Library.Intercept(interceptors...)
-	c.PlaySession.Intercept(interceptors...)
-	c.Video.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.AudioTrack, c.Library, c.PlaySession, c.PlaySessionMedia, c.PlaybackClient,
+		c.Stream, c.Video,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *AudioTrackMutation:
+		return c.AudioTrack.mutate(ctx, m)
 	case *LibraryMutation:
 		return c.Library.mutate(ctx, m)
 	case *PlaySessionMutation:
 		return c.PlaySession.mutate(ctx, m)
+	case *PlaySessionMediaMutation:
+		return c.PlaySessionMedia.mutate(ctx, m)
+	case *PlaybackClientMutation:
+		return c.PlaybackClient.mutate(ctx, m)
+	case *StreamMutation:
+		return c.Stream.mutate(ctx, m)
 	case *VideoMutation:
 		return c.Video.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// AudioTrackClient is a client for the AudioTrack schema.
+type AudioTrackClient struct {
+	config
+}
+
+// NewAudioTrackClient returns a client for the AudioTrack from the given config.
+func NewAudioTrackClient(c config) *AudioTrackClient {
+	return &AudioTrackClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `audiotrack.Hooks(f(g(h())))`.
+func (c *AudioTrackClient) Use(hooks ...Hook) {
+	c.hooks.AudioTrack = append(c.hooks.AudioTrack, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `audiotrack.Intercept(f(g(h())))`.
+func (c *AudioTrackClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AudioTrack = append(c.inters.AudioTrack, interceptors...)
+}
+
+// Create returns a builder for creating a AudioTrack entity.
+func (c *AudioTrackClient) Create() *AudioTrackCreate {
+	mutation := newAudioTrackMutation(c.config, OpCreate)
+	return &AudioTrackCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AudioTrack entities.
+func (c *AudioTrackClient) CreateBulk(builders ...*AudioTrackCreate) *AudioTrackCreateBulk {
+	return &AudioTrackCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AudioTrackClient) MapCreateBulk(slice any, setFunc func(*AudioTrackCreate, int)) *AudioTrackCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AudioTrackCreateBulk{err: fmt.Errorf("calling to AudioTrackClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AudioTrackCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AudioTrackCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AudioTrack.
+func (c *AudioTrackClient) Update() *AudioTrackUpdate {
+	mutation := newAudioTrackMutation(c.config, OpUpdate)
+	return &AudioTrackUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AudioTrackClient) UpdateOne(at *AudioTrack) *AudioTrackUpdateOne {
+	mutation := newAudioTrackMutation(c.config, OpUpdateOne, withAudioTrack(at))
+	return &AudioTrackUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AudioTrackClient) UpdateOneID(id int) *AudioTrackUpdateOne {
+	mutation := newAudioTrackMutation(c.config, OpUpdateOne, withAudioTrackID(id))
+	return &AudioTrackUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AudioTrack.
+func (c *AudioTrackClient) Delete() *AudioTrackDelete {
+	mutation := newAudioTrackMutation(c.config, OpDelete)
+	return &AudioTrackDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AudioTrackClient) DeleteOne(at *AudioTrack) *AudioTrackDeleteOne {
+	return c.DeleteOneID(at.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AudioTrackClient) DeleteOneID(id int) *AudioTrackDeleteOne {
+	builder := c.Delete().Where(audiotrack.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AudioTrackDeleteOne{builder}
+}
+
+// Query returns a query builder for AudioTrack.
+func (c *AudioTrackClient) Query() *AudioTrackQuery {
+	return &AudioTrackQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAudioTrack},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AudioTrack entity by its id.
+func (c *AudioTrackClient) Get(ctx context.Context, id int) (*AudioTrack, error) {
+	return c.Query().Where(audiotrack.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AudioTrackClient) GetX(ctx context.Context, id int) *AudioTrack {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryMedia queries the media edge of a AudioTrack.
+func (c *AudioTrackClient) QueryMedia(at *AudioTrack) *PlaySessionMediaQuery {
+	query := (&PlaySessionMediaClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := at.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(audiotrack.Table, audiotrack.FieldID, id),
+			sqlgraph.To(playsessionmedia.Table, playsessionmedia.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, audiotrack.MediaTable, audiotrack.MediaColumn),
+		)
+		fromV = sqlgraph.Neighbors(at.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *AudioTrackClient) Hooks() []Hook {
+	return c.hooks.AudioTrack
+}
+
+// Interceptors returns the client interceptors.
+func (c *AudioTrackClient) Interceptors() []Interceptor {
+	return c.inters.AudioTrack
+}
+
+func (c *AudioTrackClient) mutate(ctx context.Context, m *AudioTrackMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AudioTrackCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AudioTrackUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AudioTrackUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AudioTrackDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AudioTrack mutation op: %q", m.Op())
 	}
 }
 
@@ -476,15 +663,31 @@ func (c *PlaySessionClient) GetX(ctx context.Context, id int) *PlaySession {
 	return obj
 }
 
-// QueryVideo queries the video edge of a PlaySession.
-func (c *PlaySessionClient) QueryVideo(ps *PlaySession) *VideoQuery {
-	query := (&VideoClient{config: c.config}).Query()
+// QueryClients queries the clients edge of a PlaySession.
+func (c *PlaySessionClient) QueryClients(ps *PlaySession) *PlaybackClientQuery {
+	query := (&PlaybackClientClient{config: c.config}).Query()
 	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
 		id := ps.ID
 		step := sqlgraph.NewStep(
 			sqlgraph.From(playsession.Table, playsession.FieldID, id),
-			sqlgraph.To(video.Table, video.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, playsession.VideoTable, playsession.VideoColumn),
+			sqlgraph.To(playbackclient.Table, playbackclient.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, playsession.ClientsTable, playsession.ClientsColumn),
+		)
+		fromV = sqlgraph.Neighbors(ps.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryMedia queries the media edge of a PlaySession.
+func (c *PlaySessionClient) QueryMedia(ps *PlaySession) *PlaySessionMediaQuery {
+	query := (&PlaySessionMediaClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := ps.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(playsession.Table, playsession.FieldID, id),
+			sqlgraph.To(playsessionmedia.Table, playsessionmedia.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, playsession.MediaTable, playsession.MediaColumn),
 		)
 		fromV = sqlgraph.Neighbors(ps.driver.Dialect(), step)
 		return fromV, nil
@@ -514,6 +717,469 @@ func (c *PlaySessionClient) mutate(ctx context.Context, m *PlaySessionMutation) 
 		return (&PlaySessionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown PlaySession mutation op: %q", m.Op())
+	}
+}
+
+// PlaySessionMediaClient is a client for the PlaySessionMedia schema.
+type PlaySessionMediaClient struct {
+	config
+}
+
+// NewPlaySessionMediaClient returns a client for the PlaySessionMedia from the given config.
+func NewPlaySessionMediaClient(c config) *PlaySessionMediaClient {
+	return &PlaySessionMediaClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `playsessionmedia.Hooks(f(g(h())))`.
+func (c *PlaySessionMediaClient) Use(hooks ...Hook) {
+	c.hooks.PlaySessionMedia = append(c.hooks.PlaySessionMedia, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `playsessionmedia.Intercept(f(g(h())))`.
+func (c *PlaySessionMediaClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PlaySessionMedia = append(c.inters.PlaySessionMedia, interceptors...)
+}
+
+// Create returns a builder for creating a PlaySessionMedia entity.
+func (c *PlaySessionMediaClient) Create() *PlaySessionMediaCreate {
+	mutation := newPlaySessionMediaMutation(c.config, OpCreate)
+	return &PlaySessionMediaCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PlaySessionMedia entities.
+func (c *PlaySessionMediaClient) CreateBulk(builders ...*PlaySessionMediaCreate) *PlaySessionMediaCreateBulk {
+	return &PlaySessionMediaCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PlaySessionMediaClient) MapCreateBulk(slice any, setFunc func(*PlaySessionMediaCreate, int)) *PlaySessionMediaCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PlaySessionMediaCreateBulk{err: fmt.Errorf("calling to PlaySessionMediaClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PlaySessionMediaCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PlaySessionMediaCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PlaySessionMedia.
+func (c *PlaySessionMediaClient) Update() *PlaySessionMediaUpdate {
+	mutation := newPlaySessionMediaMutation(c.config, OpUpdate)
+	return &PlaySessionMediaUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PlaySessionMediaClient) UpdateOne(psm *PlaySessionMedia) *PlaySessionMediaUpdateOne {
+	mutation := newPlaySessionMediaMutation(c.config, OpUpdateOne, withPlaySessionMedia(psm))
+	return &PlaySessionMediaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PlaySessionMediaClient) UpdateOneID(id int) *PlaySessionMediaUpdateOne {
+	mutation := newPlaySessionMediaMutation(c.config, OpUpdateOne, withPlaySessionMediaID(id))
+	return &PlaySessionMediaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PlaySessionMedia.
+func (c *PlaySessionMediaClient) Delete() *PlaySessionMediaDelete {
+	mutation := newPlaySessionMediaMutation(c.config, OpDelete)
+	return &PlaySessionMediaDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PlaySessionMediaClient) DeleteOne(psm *PlaySessionMedia) *PlaySessionMediaDeleteOne {
+	return c.DeleteOneID(psm.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PlaySessionMediaClient) DeleteOneID(id int) *PlaySessionMediaDeleteOne {
+	builder := c.Delete().Where(playsessionmedia.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PlaySessionMediaDeleteOne{builder}
+}
+
+// Query returns a query builder for PlaySessionMedia.
+func (c *PlaySessionMediaClient) Query() *PlaySessionMediaQuery {
+	return &PlaySessionMediaQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePlaySessionMedia},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PlaySessionMedia entity by its id.
+func (c *PlaySessionMediaClient) Get(ctx context.Context, id int) (*PlaySessionMedia, error) {
+	return c.Query().Where(playsessionmedia.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PlaySessionMediaClient) GetX(ctx context.Context, id int) *PlaySessionMedia {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryAudioTracks queries the audio_tracks edge of a PlaySessionMedia.
+func (c *PlaySessionMediaClient) QueryAudioTracks(psm *PlaySessionMedia) *AudioTrackQuery {
+	query := (&AudioTrackClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := psm.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(playsessionmedia.Table, playsessionmedia.FieldID, id),
+			sqlgraph.To(audiotrack.Table, audiotrack.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, playsessionmedia.AudioTracksTable, playsessionmedia.AudioTracksColumn),
+		)
+		fromV = sqlgraph.Neighbors(psm.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryVideo queries the video edge of a PlaySessionMedia.
+func (c *PlaySessionMediaClient) QueryVideo(psm *PlaySessionMedia) *VideoQuery {
+	query := (&VideoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := psm.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(playsessionmedia.Table, playsessionmedia.FieldID, id),
+			sqlgraph.To(video.Table, video.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, playsessionmedia.VideoTable, playsessionmedia.VideoColumn),
+		)
+		fromV = sqlgraph.Neighbors(psm.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QuerySession queries the session edge of a PlaySessionMedia.
+func (c *PlaySessionMediaClient) QuerySession(psm *PlaySessionMedia) *PlaySessionQuery {
+	query := (&PlaySessionClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := psm.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(playsessionmedia.Table, playsessionmedia.FieldID, id),
+			sqlgraph.To(playsession.Table, playsession.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, true, playsessionmedia.SessionTable, playsessionmedia.SessionColumn),
+		)
+		fromV = sqlgraph.Neighbors(psm.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *PlaySessionMediaClient) Hooks() []Hook {
+	return c.hooks.PlaySessionMedia
+}
+
+// Interceptors returns the client interceptors.
+func (c *PlaySessionMediaClient) Interceptors() []Interceptor {
+	return c.inters.PlaySessionMedia
+}
+
+func (c *PlaySessionMediaClient) mutate(ctx context.Context, m *PlaySessionMediaMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PlaySessionMediaCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PlaySessionMediaUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PlaySessionMediaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PlaySessionMediaDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PlaySessionMedia mutation op: %q", m.Op())
+	}
+}
+
+// PlaybackClientClient is a client for the PlaybackClient schema.
+type PlaybackClientClient struct {
+	config
+}
+
+// NewPlaybackClientClient returns a client for the PlaybackClient from the given config.
+func NewPlaybackClientClient(c config) *PlaybackClientClient {
+	return &PlaybackClientClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `playbackclient.Hooks(f(g(h())))`.
+func (c *PlaybackClientClient) Use(hooks ...Hook) {
+	c.hooks.PlaybackClient = append(c.hooks.PlaybackClient, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `playbackclient.Intercept(f(g(h())))`.
+func (c *PlaybackClientClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PlaybackClient = append(c.inters.PlaybackClient, interceptors...)
+}
+
+// Create returns a builder for creating a PlaybackClient entity.
+func (c *PlaybackClientClient) Create() *PlaybackClientCreate {
+	mutation := newPlaybackClientMutation(c.config, OpCreate)
+	return &PlaybackClientCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PlaybackClient entities.
+func (c *PlaybackClientClient) CreateBulk(builders ...*PlaybackClientCreate) *PlaybackClientCreateBulk {
+	return &PlaybackClientCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PlaybackClientClient) MapCreateBulk(slice any, setFunc func(*PlaybackClientCreate, int)) *PlaybackClientCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PlaybackClientCreateBulk{err: fmt.Errorf("calling to PlaybackClientClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PlaybackClientCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PlaybackClientCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PlaybackClient.
+func (c *PlaybackClientClient) Update() *PlaybackClientUpdate {
+	mutation := newPlaybackClientMutation(c.config, OpUpdate)
+	return &PlaybackClientUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PlaybackClientClient) UpdateOne(pc *PlaybackClient) *PlaybackClientUpdateOne {
+	mutation := newPlaybackClientMutation(c.config, OpUpdateOne, withPlaybackClient(pc))
+	return &PlaybackClientUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PlaybackClientClient) UpdateOneID(id int) *PlaybackClientUpdateOne {
+	mutation := newPlaybackClientMutation(c.config, OpUpdateOne, withPlaybackClientID(id))
+	return &PlaybackClientUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PlaybackClient.
+func (c *PlaybackClientClient) Delete() *PlaybackClientDelete {
+	mutation := newPlaybackClientMutation(c.config, OpDelete)
+	return &PlaybackClientDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PlaybackClientClient) DeleteOne(pc *PlaybackClient) *PlaybackClientDeleteOne {
+	return c.DeleteOneID(pc.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PlaybackClientClient) DeleteOneID(id int) *PlaybackClientDeleteOne {
+	builder := c.Delete().Where(playbackclient.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PlaybackClientDeleteOne{builder}
+}
+
+// Query returns a query builder for PlaybackClient.
+func (c *PlaybackClientClient) Query() *PlaybackClientQuery {
+	return &PlaybackClientQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePlaybackClient},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PlaybackClient entity by its id.
+func (c *PlaybackClientClient) Get(ctx context.Context, id int) (*PlaybackClient, error) {
+	return c.Query().Where(playbackclient.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PlaybackClientClient) GetX(ctx context.Context, id int) *PlaybackClient {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QuerySession queries the session edge of a PlaybackClient.
+func (c *PlaybackClientClient) QuerySession(pc *PlaybackClient) *PlaySessionQuery {
+	query := (&PlaySessionClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := pc.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(playbackclient.Table, playbackclient.FieldID, id),
+			sqlgraph.To(playsession.Table, playsession.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, playbackclient.SessionTable, playbackclient.SessionColumn),
+		)
+		fromV = sqlgraph.Neighbors(pc.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *PlaybackClientClient) Hooks() []Hook {
+	return c.hooks.PlaybackClient
+}
+
+// Interceptors returns the client interceptors.
+func (c *PlaybackClientClient) Interceptors() []Interceptor {
+	return c.inters.PlaybackClient
+}
+
+func (c *PlaybackClientClient) mutate(ctx context.Context, m *PlaybackClientMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PlaybackClientCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PlaybackClientUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PlaybackClientUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PlaybackClientDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PlaybackClient mutation op: %q", m.Op())
+	}
+}
+
+// StreamClient is a client for the Stream schema.
+type StreamClient struct {
+	config
+}
+
+// NewStreamClient returns a client for the Stream from the given config.
+func NewStreamClient(c config) *StreamClient {
+	return &StreamClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `stream.Hooks(f(g(h())))`.
+func (c *StreamClient) Use(hooks ...Hook) {
+	c.hooks.Stream = append(c.hooks.Stream, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `stream.Intercept(f(g(h())))`.
+func (c *StreamClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Stream = append(c.inters.Stream, interceptors...)
+}
+
+// Create returns a builder for creating a Stream entity.
+func (c *StreamClient) Create() *StreamCreate {
+	mutation := newStreamMutation(c.config, OpCreate)
+	return &StreamCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Stream entities.
+func (c *StreamClient) CreateBulk(builders ...*StreamCreate) *StreamCreateBulk {
+	return &StreamCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *StreamClient) MapCreateBulk(slice any, setFunc func(*StreamCreate, int)) *StreamCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &StreamCreateBulk{err: fmt.Errorf("calling to StreamClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*StreamCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &StreamCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Stream.
+func (c *StreamClient) Update() *StreamUpdate {
+	mutation := newStreamMutation(c.config, OpUpdate)
+	return &StreamUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *StreamClient) UpdateOne(s *Stream) *StreamUpdateOne {
+	mutation := newStreamMutation(c.config, OpUpdateOne, withStream(s))
+	return &StreamUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *StreamClient) UpdateOneID(id int) *StreamUpdateOne {
+	mutation := newStreamMutation(c.config, OpUpdateOne, withStreamID(id))
+	return &StreamUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Stream.
+func (c *StreamClient) Delete() *StreamDelete {
+	mutation := newStreamMutation(c.config, OpDelete)
+	return &StreamDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *StreamClient) DeleteOne(s *Stream) *StreamDeleteOne {
+	return c.DeleteOneID(s.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *StreamClient) DeleteOneID(id int) *StreamDeleteOne {
+	builder := c.Delete().Where(stream.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &StreamDeleteOne{builder}
+}
+
+// Query returns a query builder for Stream.
+func (c *StreamClient) Query() *StreamQuery {
+	return &StreamQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeStream},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Stream entity by its id.
+func (c *StreamClient) Get(ctx context.Context, id int) (*Stream, error) {
+	return c.Query().Where(stream.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *StreamClient) GetX(ctx context.Context, id int) *Stream {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *StreamClient) Hooks() []Hook {
+	return c.hooks.Stream
+}
+
+// Interceptors returns the client interceptors.
+func (c *StreamClient) Interceptors() []Interceptor {
+	return c.inters.Stream
+}
+
+func (c *StreamClient) mutate(ctx context.Context, m *StreamMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&StreamCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&StreamUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&StreamUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&StreamDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Stream mutation op: %q", m.Op())
 	}
 }
 
@@ -625,6 +1291,22 @@ func (c *VideoClient) GetX(ctx context.Context, id int) *Video {
 	return obj
 }
 
+// QueryPlaySessionMedias queries the play_session_medias edge of a Video.
+func (c *VideoClient) QueryPlaySessionMedias(v *Video) *PlaySessionMediaQuery {
+	query := (&PlaySessionMediaClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := v.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(video.Table, video.FieldID, id),
+			sqlgraph.To(playsessionmedia.Table, playsessionmedia.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, video.PlaySessionMediasTable, video.PlaySessionMediasColumn),
+		)
+		fromV = sqlgraph.Neighbors(v.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryLibrary queries the library edge of a Video.
 func (c *VideoClient) QueryLibrary(v *Video) *LibraryQuery {
 	query := (&LibraryClient{config: c.config}).Query()
@@ -634,22 +1316,6 @@ func (c *VideoClient) QueryLibrary(v *Video) *LibraryQuery {
 			sqlgraph.From(video.Table, video.FieldID, id),
 			sqlgraph.To(library.Table, library.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, video.LibraryTable, video.LibraryColumn),
-		)
-		fromV = sqlgraph.Neighbors(v.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
-// QueryPlaySessions queries the play_sessions edge of a Video.
-func (c *VideoClient) QueryPlaySessions(v *Video) *PlaySessionQuery {
-	query := (&PlaySessionClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := v.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(video.Table, video.FieldID, id),
-			sqlgraph.To(playsession.Table, playsession.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, video.PlaySessionsTable, video.PlaySessionsColumn),
 		)
 		fromV = sqlgraph.Neighbors(v.driver.Dialect(), step)
 		return fromV, nil
@@ -685,9 +1351,11 @@ func (c *VideoClient) mutate(ctx context.Context, m *VideoMutation) (Value, erro
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Library, PlaySession, Video []ent.Hook
+		AudioTrack, Library, PlaySession, PlaySessionMedia, PlaybackClient, Stream,
+		Video []ent.Hook
 	}
 	inters struct {
-		Library, PlaySession, Video []ent.Interceptor
+		AudioTrack, Library, PlaySession, PlaySessionMedia, PlaybackClient, Stream,
+		Video []ent.Interceptor
 	}
 )

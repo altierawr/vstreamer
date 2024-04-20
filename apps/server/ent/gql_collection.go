@@ -6,9 +6,109 @@ import (
 	"context"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/library"
+	"github.com/altierawr/vstreamer/ent/playbackclient"
+	"github.com/altierawr/vstreamer/ent/playsession"
+	"github.com/altierawr/vstreamer/ent/playsessionmedia"
+	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/video"
 )
+
+// CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
+func (at *AudioTrackQuery) CollectFields(ctx context.Context, satisfies ...string) (*AudioTrackQuery, error) {
+	fc := graphql.GetFieldContext(ctx)
+	if fc == nil {
+		return at, nil
+	}
+	if err := at.collectField(ctx, false, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+		return nil, err
+	}
+	return at, nil
+}
+
+func (at *AudioTrackQuery) collectField(ctx context.Context, oneNode bool, opCtx *graphql.OperationContext, collected graphql.CollectedField, path []string, satisfies ...string) error {
+	path = append([]string(nil), path...)
+	var (
+		unknownSeen    bool
+		fieldSeen      = make(map[string]struct{}, len(audiotrack.Columns))
+		selectedFields = []string{audiotrack.FieldID}
+	)
+	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
+		switch field.Name {
+
+		case "media":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&PlaySessionMediaClient{config: at.config}).Query()
+			)
+			if err := query.collectField(ctx, oneNode, opCtx, field, path, mayAddCondition(satisfies, playsessionmediaImplementors)...); err != nil {
+				return err
+			}
+			at.withMedia = query
+		case "name":
+			if _, ok := fieldSeen[audiotrack.FieldName]; !ok {
+				selectedFields = append(selectedFields, audiotrack.FieldName)
+				fieldSeen[audiotrack.FieldName] = struct{}{}
+			}
+		case "nrChannels":
+			if _, ok := fieldSeen[audiotrack.FieldNrChannels]; !ok {
+				selectedFields = append(selectedFields, audiotrack.FieldNrChannels)
+				fieldSeen[audiotrack.FieldNrChannels] = struct{}{}
+			}
+		case "channelLayout":
+			if _, ok := fieldSeen[audiotrack.FieldChannelLayout]; !ok {
+				selectedFields = append(selectedFields, audiotrack.FieldChannelLayout)
+				fieldSeen[audiotrack.FieldChannelLayout] = struct{}{}
+			}
+		case "language":
+			if _, ok := fieldSeen[audiotrack.FieldLanguage]; !ok {
+				selectedFields = append(selectedFields, audiotrack.FieldLanguage)
+				fieldSeen[audiotrack.FieldLanguage] = struct{}{}
+			}
+		case "codecs":
+			if _, ok := fieldSeen[audiotrack.FieldCodecs]; !ok {
+				selectedFields = append(selectedFields, audiotrack.FieldCodecs)
+				fieldSeen[audiotrack.FieldCodecs] = struct{}{}
+			}
+		case "id":
+		case "__typename":
+		default:
+			unknownSeen = true
+		}
+	}
+	if !unknownSeen {
+		at.Select(selectedFields...)
+	}
+	return nil
+}
+
+type audiotrackPaginateArgs struct {
+	first, last   *int
+	after, before *Cursor
+	opts          []AudioTrackPaginateOption
+}
+
+func newAudioTrackPaginateArgs(rv map[string]any) *audiotrackPaginateArgs {
+	args := &audiotrackPaginateArgs{}
+	if rv == nil {
+		return args
+	}
+	if v := rv[firstField]; v != nil {
+		args.first = v.(*int)
+	}
+	if v := rv[lastField]; v != nil {
+		args.last = v.(*int)
+	}
+	if v := rv[afterField]; v != nil {
+		args.after = v.(*Cursor)
+	}
+	if v := rv[beforeField]; v != nil {
+		args.before = v.(*Cursor)
+	}
+	return args
+}
 
 // CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
 func (l *LibraryQuery) CollectFields(ctx context.Context, satisfies ...string) (*LibraryQuery, error) {
@@ -106,20 +206,55 @@ func (ps *PlaySessionQuery) CollectFields(ctx context.Context, satisfies ...stri
 
 func (ps *PlaySessionQuery) collectField(ctx context.Context, oneNode bool, opCtx *graphql.OperationContext, collected graphql.CollectedField, path []string, satisfies ...string) error {
 	path = append([]string(nil), path...)
+	var (
+		unknownSeen    bool
+		fieldSeen      = make(map[string]struct{}, len(playsession.Columns))
+		selectedFields = []string{playsession.FieldID}
+	)
 	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
 		switch field.Name {
 
-		case "video":
+		case "clients":
 			var (
 				alias = field.Alias
 				path  = append(path, alias)
-				query = (&VideoClient{config: ps.config}).Query()
+				query = (&PlaybackClientClient{config: ps.config}).Query()
 			)
-			if err := query.collectField(ctx, oneNode, opCtx, field, path, mayAddCondition(satisfies, videoImplementors)...); err != nil {
+			if err := query.collectField(ctx, false, opCtx, field, path, mayAddCondition(satisfies, playbackclientImplementors)...); err != nil {
 				return err
 			}
-			ps.withVideo = query
+			ps.WithNamedClients(alias, func(wq *PlaybackClientQuery) {
+				*wq = *query
+			})
+
+		case "media":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&PlaySessionMediaClient{config: ps.config}).Query()
+			)
+			if err := query.collectField(ctx, oneNode, opCtx, field, path, mayAddCondition(satisfies, playsessionmediaImplementors)...); err != nil {
+				return err
+			}
+			ps.withMedia = query
+		case "currentTime":
+			if _, ok := fieldSeen[playsession.FieldCurrentTime]; !ok {
+				selectedFields = append(selectedFields, playsession.FieldCurrentTime)
+				fieldSeen[playsession.FieldCurrentTime] = struct{}{}
+			}
+		case "state":
+			if _, ok := fieldSeen[playsession.FieldState]; !ok {
+				selectedFields = append(selectedFields, playsession.FieldState)
+				fieldSeen[playsession.FieldState] = struct{}{}
+			}
+		case "id":
+		case "__typename":
+		default:
+			unknownSeen = true
 		}
+	}
+	if !unknownSeen {
+		ps.Select(selectedFields...)
 	}
 	return nil
 }
@@ -132,6 +267,284 @@ type playsessionPaginateArgs struct {
 
 func newPlaySessionPaginateArgs(rv map[string]any) *playsessionPaginateArgs {
 	args := &playsessionPaginateArgs{}
+	if rv == nil {
+		return args
+	}
+	if v := rv[firstField]; v != nil {
+		args.first = v.(*int)
+	}
+	if v := rv[lastField]; v != nil {
+		args.last = v.(*int)
+	}
+	if v := rv[afterField]; v != nil {
+		args.after = v.(*Cursor)
+	}
+	if v := rv[beforeField]; v != nil {
+		args.before = v.(*Cursor)
+	}
+	return args
+}
+
+// CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
+func (psm *PlaySessionMediaQuery) CollectFields(ctx context.Context, satisfies ...string) (*PlaySessionMediaQuery, error) {
+	fc := graphql.GetFieldContext(ctx)
+	if fc == nil {
+		return psm, nil
+	}
+	if err := psm.collectField(ctx, false, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+		return nil, err
+	}
+	return psm, nil
+}
+
+func (psm *PlaySessionMediaQuery) collectField(ctx context.Context, oneNode bool, opCtx *graphql.OperationContext, collected graphql.CollectedField, path []string, satisfies ...string) error {
+	path = append([]string(nil), path...)
+	var (
+		unknownSeen    bool
+		fieldSeen      = make(map[string]struct{}, len(playsessionmedia.Columns))
+		selectedFields = []string{playsessionmedia.FieldID}
+	)
+	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
+		switch field.Name {
+
+		case "audioTracks":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&AudioTrackClient{config: psm.config}).Query()
+			)
+			if err := query.collectField(ctx, false, opCtx, field, path, mayAddCondition(satisfies, audiotrackImplementors)...); err != nil {
+				return err
+			}
+			psm.WithNamedAudioTracks(alias, func(wq *AudioTrackQuery) {
+				*wq = *query
+			})
+
+		case "video":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&VideoClient{config: psm.config}).Query()
+			)
+			if err := query.collectField(ctx, oneNode, opCtx, field, path, mayAddCondition(satisfies, videoImplementors)...); err != nil {
+				return err
+			}
+			psm.withVideo = query
+
+		case "session":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&PlaySessionClient{config: psm.config}).Query()
+			)
+			if err := query.collectField(ctx, oneNode, opCtx, field, path, mayAddCondition(satisfies, playsessionImplementors)...); err != nil {
+				return err
+			}
+			psm.withSession = query
+		case "videoCodecs":
+			if _, ok := fieldSeen[playsessionmedia.FieldVideoCodecs]; !ok {
+				selectedFields = append(selectedFields, playsessionmedia.FieldVideoCodecs)
+				fieldSeen[playsessionmedia.FieldVideoCodecs] = struct{}{}
+			}
+		case "resolutions":
+			if _, ok := fieldSeen[playsessionmedia.FieldResolutions]; !ok {
+				selectedFields = append(selectedFields, playsessionmedia.FieldResolutions)
+				fieldSeen[playsessionmedia.FieldResolutions] = struct{}{}
+			}
+		case "id":
+		case "__typename":
+		default:
+			unknownSeen = true
+		}
+	}
+	if !unknownSeen {
+		psm.Select(selectedFields...)
+	}
+	return nil
+}
+
+type playsessionmediaPaginateArgs struct {
+	first, last   *int
+	after, before *Cursor
+	opts          []PlaySessionMediaPaginateOption
+}
+
+func newPlaySessionMediaPaginateArgs(rv map[string]any) *playsessionmediaPaginateArgs {
+	args := &playsessionmediaPaginateArgs{}
+	if rv == nil {
+		return args
+	}
+	if v := rv[firstField]; v != nil {
+		args.first = v.(*int)
+	}
+	if v := rv[lastField]; v != nil {
+		args.last = v.(*int)
+	}
+	if v := rv[afterField]; v != nil {
+		args.after = v.(*Cursor)
+	}
+	if v := rv[beforeField]; v != nil {
+		args.before = v.(*Cursor)
+	}
+	return args
+}
+
+// CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
+func (pc *PlaybackClientQuery) CollectFields(ctx context.Context, satisfies ...string) (*PlaybackClientQuery, error) {
+	fc := graphql.GetFieldContext(ctx)
+	if fc == nil {
+		return pc, nil
+	}
+	if err := pc.collectField(ctx, false, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+		return nil, err
+	}
+	return pc, nil
+}
+
+func (pc *PlaybackClientQuery) collectField(ctx context.Context, oneNode bool, opCtx *graphql.OperationContext, collected graphql.CollectedField, path []string, satisfies ...string) error {
+	path = append([]string(nil), path...)
+	var (
+		unknownSeen    bool
+		fieldSeen      = make(map[string]struct{}, len(playbackclient.Columns))
+		selectedFields = []string{playbackclient.FieldID}
+	)
+	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
+		switch field.Name {
+
+		case "session":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&PlaySessionClient{config: pc.config}).Query()
+			)
+			if err := query.collectField(ctx, oneNode, opCtx, field, path, mayAddCondition(satisfies, playsessionImplementors)...); err != nil {
+				return err
+			}
+			pc.withSession = query
+		case "isBuffered":
+			if _, ok := fieldSeen[playbackclient.FieldIsBuffered]; !ok {
+				selectedFields = append(selectedFields, playbackclient.FieldIsBuffered)
+				fieldSeen[playbackclient.FieldIsBuffered] = struct{}{}
+			}
+		case "id":
+		case "__typename":
+		default:
+			unknownSeen = true
+		}
+	}
+	if !unknownSeen {
+		pc.Select(selectedFields...)
+	}
+	return nil
+}
+
+type playbackclientPaginateArgs struct {
+	first, last   *int
+	after, before *Cursor
+	opts          []PlaybackClientPaginateOption
+}
+
+func newPlaybackClientPaginateArgs(rv map[string]any) *playbackclientPaginateArgs {
+	args := &playbackclientPaginateArgs{}
+	if rv == nil {
+		return args
+	}
+	if v := rv[firstField]; v != nil {
+		args.first = v.(*int)
+	}
+	if v := rv[lastField]; v != nil {
+		args.last = v.(*int)
+	}
+	if v := rv[afterField]; v != nil {
+		args.after = v.(*Cursor)
+	}
+	if v := rv[beforeField]; v != nil {
+		args.before = v.(*Cursor)
+	}
+	return args
+}
+
+// CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
+func (s *StreamQuery) CollectFields(ctx context.Context, satisfies ...string) (*StreamQuery, error) {
+	fc := graphql.GetFieldContext(ctx)
+	if fc == nil {
+		return s, nil
+	}
+	if err := s.collectField(ctx, false, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (s *StreamQuery) collectField(ctx context.Context, oneNode bool, opCtx *graphql.OperationContext, collected graphql.CollectedField, path []string, satisfies ...string) error {
+	path = append([]string(nil), path...)
+	var (
+		unknownSeen    bool
+		fieldSeen      = make(map[string]struct{}, len(stream.Columns))
+		selectedFields = []string{stream.FieldID}
+	)
+	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
+		switch field.Name {
+		case "width":
+			if _, ok := fieldSeen[stream.FieldWidth]; !ok {
+				selectedFields = append(selectedFields, stream.FieldWidth)
+				fieldSeen[stream.FieldWidth] = struct{}{}
+			}
+		case "height":
+			if _, ok := fieldSeen[stream.FieldHeight]; !ok {
+				selectedFields = append(selectedFields, stream.FieldHeight)
+				fieldSeen[stream.FieldHeight] = struct{}{}
+			}
+		case "container":
+			if _, ok := fieldSeen[stream.FieldContainer]; !ok {
+				selectedFields = append(selectedFields, stream.FieldContainer)
+				fieldSeen[stream.FieldContainer] = struct{}{}
+			}
+		case "videoCodec":
+			if _, ok := fieldSeen[stream.FieldVideoCodec]; !ok {
+				selectedFields = append(selectedFields, stream.FieldVideoCodec)
+				fieldSeen[stream.FieldVideoCodec] = struct{}{}
+			}
+		case "audioCodec":
+			if _, ok := fieldSeen[stream.FieldAudioCodec]; !ok {
+				selectedFields = append(selectedFields, stream.FieldAudioCodec)
+				fieldSeen[stream.FieldAudioCodec] = struct{}{}
+			}
+		case "segmentDuration":
+			if _, ok := fieldSeen[stream.FieldSegmentDuration]; !ok {
+				selectedFields = append(selectedFields, stream.FieldSegmentDuration)
+				fieldSeen[stream.FieldSegmentDuration] = struct{}{}
+			}
+		case "quality":
+			if _, ok := fieldSeen[stream.FieldQuality]; !ok {
+				selectedFields = append(selectedFields, stream.FieldQuality)
+				fieldSeen[stream.FieldQuality] = struct{}{}
+			}
+		case "type":
+			if _, ok := fieldSeen[stream.FieldType]; !ok {
+				selectedFields = append(selectedFields, stream.FieldType)
+				fieldSeen[stream.FieldType] = struct{}{}
+			}
+		case "id":
+		case "__typename":
+		default:
+			unknownSeen = true
+		}
+	}
+	if !unknownSeen {
+		s.Select(selectedFields...)
+	}
+	return nil
+}
+
+type streamPaginateArgs struct {
+	first, last   *int
+	after, before *Cursor
+	opts          []StreamPaginateOption
+}
+
+func newStreamPaginateArgs(rv map[string]any) *streamPaginateArgs {
+	args := &streamPaginateArgs{}
 	if rv == nil {
 		return args
 	}
@@ -172,6 +585,19 @@ func (v *VideoQuery) collectField(ctx context.Context, oneNode bool, opCtx *grap
 	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
 		switch field.Name {
 
+		case "playSessionMedias":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&PlaySessionMediaClient{config: v.config}).Query()
+			)
+			if err := query.collectField(ctx, false, opCtx, field, path, mayAddCondition(satisfies, playsessionmediaImplementors)...); err != nil {
+				return err
+			}
+			v.WithNamedPlaySessionMedias(alias, func(wq *PlaySessionMediaQuery) {
+				*wq = *query
+			})
+
 		case "library":
 			var (
 				alias = field.Alias
@@ -182,19 +608,6 @@ func (v *VideoQuery) collectField(ctx context.Context, oneNode bool, opCtx *grap
 				return err
 			}
 			v.withLibrary = query
-
-		case "playSessions":
-			var (
-				alias = field.Alias
-				path  = append(path, alias)
-				query = (&PlaySessionClient{config: v.config}).Query()
-			)
-			if err := query.collectField(ctx, false, opCtx, field, path, mayAddCondition(satisfies, playsessionImplementors)...); err != nil {
-				return err
-			}
-			v.WithNamedPlaySessions(alias, func(wq *PlaySessionQuery) {
-				*wq = *query
-			})
 		case "path":
 			if _, ok := fieldSeen[video.FieldPath]; !ok {
 				selectedFields = append(selectedFields, video.FieldPath)

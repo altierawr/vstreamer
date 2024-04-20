@@ -2,6 +2,6 @@
 
 package vstreamer
 
-type CreatePlaySessionInput struct {
+type PlayVideoInput struct {
 	VideoID int `json:"videoID"`
 }

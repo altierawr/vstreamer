@@ -72,10 +72,10 @@ func (c *LibraryUpdateOne) SetInput(i UpdateLibraryInput) *LibraryUpdateOne {
 
 // CreateVideoInput represents a mutation input for creating videos.
 type CreateVideoInput struct {
-	Path           string
-	CreatedAt      *time.Time
-	LibraryID      *int
-	PlaySessionIDs []int
+	Path                string
+	CreatedAt           *time.Time
+	PlaySessionMediaIDs []int
+	LibraryID           *int
 }
 
 // Mutate applies the CreateVideoInput on the VideoMutation builder.
@@ -84,11 +84,11 @@ func (i *CreateVideoInput) Mutate(m *VideoMutation) {
 	if v := i.CreatedAt; v != nil {
 		m.SetCreatedAt(*v)
 	}
+	if v := i.PlaySessionMediaIDs; len(v) > 0 {
+		m.AddPlaySessionMediaIDs(v...)
+	}
 	if v := i.LibraryID; v != nil {
 		m.SetLibraryID(*v)
-	}
-	if v := i.PlaySessionIDs; len(v) > 0 {
-		m.AddPlaySessionIDs(v...)
 	}
 }
 
@@ -100,13 +100,13 @@ func (c *VideoCreate) SetInput(i CreateVideoInput) *VideoCreate {
 
 // UpdateVideoInput represents a mutation input for updating videos.
 type UpdateVideoInput struct {
-	Path                 *string
-	CreatedAt            *time.Time
-	ClearLibrary         bool
-	LibraryID            *int
-	ClearPlaySessions    bool
-	AddPlaySessionIDs    []int
-	RemovePlaySessionIDs []int
+	Path                      *string
+	CreatedAt                 *time.Time
+	ClearPlaySessionMedias    bool
+	AddPlaySessionMediaIDs    []int
+	RemovePlaySessionMediaIDs []int
+	ClearLibrary              bool
+	LibraryID                 *int
 }
 
 // Mutate applies the UpdateVideoInput on the VideoMutation builder.
@@ -117,20 +117,20 @@ func (i *UpdateVideoInput) Mutate(m *VideoMutation) {
 	if v := i.CreatedAt; v != nil {
 		m.SetCreatedAt(*v)
 	}
+	if i.ClearPlaySessionMedias {
+		m.ClearPlaySessionMedias()
+	}
+	if v := i.AddPlaySessionMediaIDs; len(v) > 0 {
+		m.AddPlaySessionMediaIDs(v...)
+	}
+	if v := i.RemovePlaySessionMediaIDs; len(v) > 0 {
+		m.RemovePlaySessionMediaIDs(v...)
+	}
 	if i.ClearLibrary {
 		m.ClearLibrary()
 	}
 	if v := i.LibraryID; v != nil {
 		m.SetLibraryID(*v)
-	}
-	if i.ClearPlaySessions {
-		m.ClearPlaySessions()
-	}
-	if v := i.AddPlaySessionIDs; len(v) > 0 {
-		m.AddPlaySessionIDs(v...)
-	}
-	if v := i.RemovePlaySessionIDs; len(v) > 0 {
-		m.RemovePlaySessionIDs(v...)
 	}
 }
 

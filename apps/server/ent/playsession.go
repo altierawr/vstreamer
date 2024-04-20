@@ -9,41 +9,57 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/altierawr/vstreamer/ent/playsession"
-	"github.com/altierawr/vstreamer/ent/video"
+	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 )
 
 // PlaySession is the model entity for the PlaySession schema.
 type PlaySession struct {
-	config
+	config `json:"-"`
 	// ID of the ent.
 	ID int `json:"id,omitempty"`
+	// CurrentTime holds the value of the "current_time" field.
+	CurrentTime int `json:"current_time,omitempty"`
+	// State holds the value of the "state" field.
+	State playsession.State `json:"state,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the PlaySessionQuery when eager-loading is set.
-	Edges               PlaySessionEdges `json:"edges"`
-	video_play_sessions *int
-	selectValues        sql.SelectValues
+	Edges        PlaySessionEdges `json:"edges"`
+	selectValues sql.SelectValues
 }
 
 // PlaySessionEdges holds the relations/edges for other nodes in the graph.
 type PlaySessionEdges struct {
-	// Video holds the value of the video edge.
-	Video *Video `json:"video,omitempty"`
+	// Clients holds the value of the clients edge.
+	Clients []*PlaybackClient `json:"clients,omitempty"`
+	// Media holds the value of the media edge.
+	Media *PlaySessionMedia `json:"media,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 	// totalCount holds the count of the edges above.
-	totalCount [1]map[string]int
+	totalCount [2]map[string]int
+
+	namedClients map[string][]*PlaybackClient
 }
 
-// VideoOrErr returns the Video value or an error if the edge
-// was not loaded in eager-loading, or loaded but was not found.
-func (e PlaySessionEdges) VideoOrErr() (*Video, error) {
-	if e.Video != nil {
-		return e.Video, nil
-	} else if e.loadedTypes[0] {
-		return nil, &NotFoundError{label: video.Label}
+// ClientsOrErr returns the Clients value or an error if the edge
+// was not loaded in eager-loading.
+func (e PlaySessionEdges) ClientsOrErr() ([]*PlaybackClient, error) {
+	if e.loadedTypes[0] {
+		return e.Clients, nil
 	}
-	return nil, &NotLoadedError{edge: "video"}
+	return nil, &NotLoadedError{edge: "clients"}
+}
+
+// MediaOrErr returns the Media value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e PlaySessionEdges) MediaOrErr() (*PlaySessionMedia, error) {
+	if e.Media != nil {
+		return e.Media, nil
+	} else if e.loadedTypes[1] {
+		return nil, &NotFoundError{label: playsessionmedia.Label}
+	}
+	return nil, &NotLoadedError{edge: "media"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -51,10 +67,10 @@ func (*PlaySession) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case playsession.FieldID:
+		case playsession.FieldID, playsession.FieldCurrentTime:
 			values[i] = new(sql.NullInt64)
-		case playsession.ForeignKeys[0]: // video_play_sessions
-			values[i] = new(sql.NullInt64)
+		case playsession.FieldState:
+			values[i] = new(sql.NullString)
 		default:
 			values[i] = new(sql.UnknownType)
 		}
@@ -76,12 +92,17 @@ func (ps *PlaySession) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
 			ps.ID = int(value.Int64)
-		case playsession.ForeignKeys[0]:
+		case playsession.FieldCurrentTime:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for edge-field video_play_sessions", value)
+				return fmt.Errorf("unexpected type %T for field current_time", values[i])
 			} else if value.Valid {
-				ps.video_play_sessions = new(int)
-				*ps.video_play_sessions = int(value.Int64)
+				ps.CurrentTime = int(value.Int64)
+			}
+		case playsession.FieldState:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field state", values[i])
+			} else if value.Valid {
+				ps.State = playsession.State(value.String)
 			}
 		default:
 			ps.selectValues.Set(columns[i], values[i])
@@ -96,9 +117,14 @@ func (ps *PlaySession) Value(name string) (ent.Value, error) {
 	return ps.selectValues.Get(name)
 }
 
-// QueryVideo queries the "video" edge of the PlaySession entity.
-func (ps *PlaySession) QueryVideo() *VideoQuery {
-	return NewPlaySessionClient(ps.config).QueryVideo(ps)
+// QueryClients queries the "clients" edge of the PlaySession entity.
+func (ps *PlaySession) QueryClients() *PlaybackClientQuery {
+	return NewPlaySessionClient(ps.config).QueryClients(ps)
+}
+
+// QueryMedia queries the "media" edge of the PlaySession entity.
+func (ps *PlaySession) QueryMedia() *PlaySessionMediaQuery {
+	return NewPlaySessionClient(ps.config).QueryMedia(ps)
 }
 
 // Update returns a builder for updating this PlaySession.
@@ -123,9 +149,38 @@ func (ps *PlaySession) Unwrap() *PlaySession {
 func (ps *PlaySession) String() string {
 	var builder strings.Builder
 	builder.WriteString("PlaySession(")
-	builder.WriteString(fmt.Sprintf("id=%v", ps.ID))
+	builder.WriteString(fmt.Sprintf("id=%v, ", ps.ID))
+	builder.WriteString("current_time=")
+	builder.WriteString(fmt.Sprintf("%v", ps.CurrentTime))
+	builder.WriteString(", ")
+	builder.WriteString("state=")
+	builder.WriteString(fmt.Sprintf("%v", ps.State))
 	builder.WriteByte(')')
 	return builder.String()
+}
+
+// NamedClients returns the Clients named value or an error if the edge was not
+// loaded in eager-loading with this name.
+func (ps *PlaySession) NamedClients(name string) ([]*PlaybackClient, error) {
+	if ps.Edges.namedClients == nil {
+		return nil, &NotLoadedError{edge: name}
+	}
+	nodes, ok := ps.Edges.namedClients[name]
+	if !ok {
+		return nil, &NotLoadedError{edge: name}
+	}
+	return nodes, nil
+}
+
+func (ps *PlaySession) appendNamedClients(name string, edges ...*PlaybackClient) {
+	if ps.Edges.namedClients == nil {
+		ps.Edges.namedClients = make(map[string][]*PlaybackClient)
+	}
+	if len(edges) == 0 {
+		ps.Edges.namedClients[name] = []*PlaybackClient{}
+	} else {
+		ps.Edges.namedClients[name] = append(ps.Edges.namedClients[name], edges...)
+	}
 }
 
 // PlaySessions is a parsable slice of PlaySession.

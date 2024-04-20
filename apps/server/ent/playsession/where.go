@@ -53,21 +53,119 @@ func IDLTE(id int) predicate.PlaySession {
 	return predicate.PlaySession(sql.FieldLTE(FieldID, id))
 }
 
-// HasVideo applies the HasEdge predicate on the "video" edge.
-func HasVideo() predicate.PlaySession {
+// CurrentTime applies equality check predicate on the "current_time" field. It's identical to CurrentTimeEQ.
+func CurrentTime(v int) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldEQ(FieldCurrentTime, v))
+}
+
+// CurrentTimeEQ applies the EQ predicate on the "current_time" field.
+func CurrentTimeEQ(v int) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldEQ(FieldCurrentTime, v))
+}
+
+// CurrentTimeNEQ applies the NEQ predicate on the "current_time" field.
+func CurrentTimeNEQ(v int) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldNEQ(FieldCurrentTime, v))
+}
+
+// CurrentTimeIn applies the In predicate on the "current_time" field.
+func CurrentTimeIn(vs ...int) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldIn(FieldCurrentTime, vs...))
+}
+
+// CurrentTimeNotIn applies the NotIn predicate on the "current_time" field.
+func CurrentTimeNotIn(vs ...int) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldNotIn(FieldCurrentTime, vs...))
+}
+
+// CurrentTimeGT applies the GT predicate on the "current_time" field.
+func CurrentTimeGT(v int) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldGT(FieldCurrentTime, v))
+}
+
+// CurrentTimeGTE applies the GTE predicate on the "current_time" field.
+func CurrentTimeGTE(v int) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldGTE(FieldCurrentTime, v))
+}
+
+// CurrentTimeLT applies the LT predicate on the "current_time" field.
+func CurrentTimeLT(v int) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldLT(FieldCurrentTime, v))
+}
+
+// CurrentTimeLTE applies the LTE predicate on the "current_time" field.
+func CurrentTimeLTE(v int) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldLTE(FieldCurrentTime, v))
+}
+
+// CurrentTimeIsNil applies the IsNil predicate on the "current_time" field.
+func CurrentTimeIsNil() predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldIsNull(FieldCurrentTime))
+}
+
+// CurrentTimeNotNil applies the NotNil predicate on the "current_time" field.
+func CurrentTimeNotNil() predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldNotNull(FieldCurrentTime))
+}
+
+// StateEQ applies the EQ predicate on the "state" field.
+func StateEQ(v State) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldEQ(FieldState, v))
+}
+
+// StateNEQ applies the NEQ predicate on the "state" field.
+func StateNEQ(v State) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldNEQ(FieldState, v))
+}
+
+// StateIn applies the In predicate on the "state" field.
+func StateIn(vs ...State) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldIn(FieldState, vs...))
+}
+
+// StateNotIn applies the NotIn predicate on the "state" field.
+func StateNotIn(vs ...State) predicate.PlaySession {
+	return predicate.PlaySession(sql.FieldNotIn(FieldState, vs...))
+}
+
+// HasClients applies the HasEdge predicate on the "clients" edge.
+func HasClients() predicate.PlaySession {
 	return predicate.PlaySession(func(s *sql.Selector) {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, VideoTable, VideoColumn),
+			sqlgraph.Edge(sqlgraph.O2M, false, ClientsTable, ClientsColumn),
 		)
 		sqlgraph.HasNeighbors(s, step)
 	})
 }
 
-// HasVideoWith applies the HasEdge predicate on the "video" edge with a given conditions (other predicates).
-func HasVideoWith(preds ...predicate.Video) predicate.PlaySession {
+// HasClientsWith applies the HasEdge predicate on the "clients" edge with a given conditions (other predicates).
+func HasClientsWith(preds ...predicate.PlaybackClient) predicate.PlaySession {
 	return predicate.PlaySession(func(s *sql.Selector) {
-		step := newVideoStep()
+		step := newClientsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasMedia applies the HasEdge predicate on the "media" edge.
+func HasMedia() predicate.PlaySession {
+	return predicate.PlaySession(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, MediaTable, MediaColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasMediaWith applies the HasEdge predicate on the "media" edge with a given conditions (other predicates).
+func HasMediaWith(preds ...predicate.PlaySessionMedia) predicate.PlaySession {
+	return predicate.PlaySession(func(s *sql.Selector) {
+		step := newMediaStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

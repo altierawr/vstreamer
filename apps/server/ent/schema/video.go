@@ -27,10 +27,10 @@ func (Video) Fields() []ent.Field {
 // Edges of the Video.
 func (Video) Edges() []ent.Edge {
 	return []ent.Edge{
+		edge.To("play_session_medias", PlaySessionMedia.Type),
 		edge.From("library", Library.Type).
 			Ref("videos").
 			Unique(),
-		edge.To("play_sessions", PlaySession.Type),
 	}
 }
 

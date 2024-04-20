@@ -3,6 +3,10 @@
 package playsession
 
 import (
+	"fmt"
+	"io"
+	"strconv"
+
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 )
@@ -12,28 +16,37 @@ const (
 	Label = "play_session"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
-	// EdgeVideo holds the string denoting the video edge name in mutations.
-	EdgeVideo = "video"
+	// FieldCurrentTime holds the string denoting the current_time field in the database.
+	FieldCurrentTime = "current_time"
+	// FieldState holds the string denoting the state field in the database.
+	FieldState = "state"
+	// EdgeClients holds the string denoting the clients edge name in mutations.
+	EdgeClients = "clients"
+	// EdgeMedia holds the string denoting the media edge name in mutations.
+	EdgeMedia = "media"
 	// Table holds the table name of the playsession in the database.
 	Table = "play_sessions"
-	// VideoTable is the table that holds the video relation/edge.
-	VideoTable = "play_sessions"
-	// VideoInverseTable is the table name for the Video entity.
-	// It exists in this package in order to avoid circular dependency with the "video" package.
-	VideoInverseTable = "videos"
-	// VideoColumn is the table column denoting the video relation/edge.
-	VideoColumn = "video_play_sessions"
+	// ClientsTable is the table that holds the clients relation/edge.
+	ClientsTable = "playback_clients"
+	// ClientsInverseTable is the table name for the PlaybackClient entity.
+	// It exists in this package in order to avoid circular dependency with the "playbackclient" package.
+	ClientsInverseTable = "playback_clients"
+	// ClientsColumn is the table column denoting the clients relation/edge.
+	ClientsColumn = "play_session_clients"
+	// MediaTable is the table that holds the media relation/edge.
+	MediaTable = "play_session_media"
+	// MediaInverseTable is the table name for the PlaySessionMedia entity.
+	// It exists in this package in order to avoid circular dependency with the "playsessionmedia" package.
+	MediaInverseTable = "play_session_media"
+	// MediaColumn is the table column denoting the media relation/edge.
+	MediaColumn = "play_session_media"
 )
 
 // Columns holds all SQL columns for playsession fields.
 var Columns = []string{
 	FieldID,
-}
-
-// ForeignKeys holds the SQL foreign-keys that are owned by the "play_sessions"
-// table and are not defined as standalone fields in the schema.
-var ForeignKeys = []string{
-	"video_play_sessions",
+	FieldCurrentTime,
+	FieldState,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -43,12 +56,35 @@ func ValidColumn(column string) bool {
 			return true
 		}
 	}
-	for i := range ForeignKeys {
-		if column == ForeignKeys[i] {
-			return true
-		}
-	}
 	return false
+}
+
+// State defines the type for the "state" enum field.
+type State string
+
+// StateSTOPPED is the default value of the State enum.
+const DefaultState = StateSTOPPED
+
+// State values.
+const (
+	StatePLAYING   State = "PLAYING"
+	StatePAUSED    State = "PAUSED"
+	StateBUFFERING State = "BUFFERING"
+	StateSTOPPED   State = "STOPPED"
+)
+
+func (s State) String() string {
+	return string(s)
+}
+
+// StateValidator is a validator for the "state" field enum values. It is called by the builders before save.
+func StateValidator(s State) error {
+	switch s {
+	case StatePLAYING, StatePAUSED, StateBUFFERING, StateSTOPPED:
+		return nil
+	default:
+		return fmt.Errorf("playsession: invalid enum value for state field: %q", s)
+	}
 }
 
 // OrderOption defines the ordering options for the PlaySession queries.
@@ -59,16 +95,65 @@ func ByID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldID, opts...).ToFunc()
 }
 
-// ByVideoField orders the results by video field.
-func ByVideoField(field string, opts ...sql.OrderTermOption) OrderOption {
+// ByCurrentTime orders the results by the current_time field.
+func ByCurrentTime(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCurrentTime, opts...).ToFunc()
+}
+
+// ByState orders the results by the state field.
+func ByState(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldState, opts...).ToFunc()
+}
+
+// ByClientsCount orders the results by clients count.
+func ByClientsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newVideoStep(), sql.OrderByField(field, opts...))
+		sqlgraph.OrderByNeighborsCount(s, newClientsStep(), opts...)
 	}
 }
-func newVideoStep() *sqlgraph.Step {
+
+// ByClients orders the results by clients terms.
+func ByClients(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newClientsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByMediaField orders the results by media field.
+func ByMediaField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newMediaStep(), sql.OrderByField(field, opts...))
+	}
+}
+func newClientsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(VideoInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, true, VideoTable, VideoColumn),
+		sqlgraph.To(ClientsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ClientsTable, ClientsColumn),
 	)
+}
+func newMediaStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(MediaInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2O, false, MediaTable, MediaColumn),
+	)
+}
+
+// MarshalGQL implements graphql.Marshaler interface.
+func (e State) MarshalGQL(w io.Writer) {
+	io.WriteString(w, strconv.Quote(e.String()))
+}
+
+// UnmarshalGQL implements graphql.Unmarshaler interface.
+func (e *State) UnmarshalGQL(val interface{}) error {
+	str, ok := val.(string)
+	if !ok {
+		return fmt.Errorf("enum %T must be a string", val)
+	}
+	*e = State(str)
+	if err := StateValidator(*e); err != nil {
+		return fmt.Errorf("%s is not a valid State", str)
+	}
+	return nil
 }

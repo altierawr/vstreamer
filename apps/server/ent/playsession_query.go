@@ -4,28 +4,31 @@ package ent
 
 import (
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"math"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/playbackclient"
 	"github.com/altierawr/vstreamer/ent/playsession"
+	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/predicate"
-	"github.com/altierawr/vstreamer/ent/video"
 )
 
 // PlaySessionQuery is the builder for querying PlaySession entities.
 type PlaySessionQuery struct {
 	config
-	ctx        *QueryContext
-	order      []playsession.OrderOption
-	inters     []Interceptor
-	predicates []predicate.PlaySession
-	withVideo  *VideoQuery
-	withFKs    bool
-	modifiers  []func(*sql.Selector)
-	loadTotal  []func(context.Context, []*PlaySession) error
+	ctx              *QueryContext
+	order            []playsession.OrderOption
+	inters           []Interceptor
+	predicates       []predicate.PlaySession
+	withClients      *PlaybackClientQuery
+	withMedia        *PlaySessionMediaQuery
+	modifiers        []func(*sql.Selector)
+	loadTotal        []func(context.Context, []*PlaySession) error
+	withNamedClients map[string]*PlaybackClientQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -62,9 +65,9 @@ func (psq *PlaySessionQuery) Order(o ...playsession.OrderOption) *PlaySessionQue
 	return psq
 }
 
-// QueryVideo chains the current query on the "video" edge.
-func (psq *PlaySessionQuery) QueryVideo() *VideoQuery {
-	query := (&VideoClient{config: psq.config}).Query()
+// QueryClients chains the current query on the "clients" edge.
+func (psq *PlaySessionQuery) QueryClients() *PlaybackClientQuery {
+	query := (&PlaybackClientClient{config: psq.config}).Query()
 	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
 		if err := psq.prepareQuery(ctx); err != nil {
 			return nil, err
@@ -75,8 +78,30 @@ func (psq *PlaySessionQuery) QueryVideo() *VideoQuery {
 		}
 		step := sqlgraph.NewStep(
 			sqlgraph.From(playsession.Table, playsession.FieldID, selector),
-			sqlgraph.To(video.Table, video.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, playsession.VideoTable, playsession.VideoColumn),
+			sqlgraph.To(playbackclient.Table, playbackclient.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, playsession.ClientsTable, playsession.ClientsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(psq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryMedia chains the current query on the "media" edge.
+func (psq *PlaySessionQuery) QueryMedia() *PlaySessionMediaQuery {
+	query := (&PlaySessionMediaClient{config: psq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := psq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := psq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(playsession.Table, playsession.FieldID, selector),
+			sqlgraph.To(playsessionmedia.Table, playsessionmedia.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, playsession.MediaTable, playsession.MediaColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(psq.driver.Dialect(), step)
 		return fromU, nil
@@ -271,31 +296,55 @@ func (psq *PlaySessionQuery) Clone() *PlaySessionQuery {
 		return nil
 	}
 	return &PlaySessionQuery{
-		config:     psq.config,
-		ctx:        psq.ctx.Clone(),
-		order:      append([]playsession.OrderOption{}, psq.order...),
-		inters:     append([]Interceptor{}, psq.inters...),
-		predicates: append([]predicate.PlaySession{}, psq.predicates...),
-		withVideo:  psq.withVideo.Clone(),
+		config:      psq.config,
+		ctx:         psq.ctx.Clone(),
+		order:       append([]playsession.OrderOption{}, psq.order...),
+		inters:      append([]Interceptor{}, psq.inters...),
+		predicates:  append([]predicate.PlaySession{}, psq.predicates...),
+		withClients: psq.withClients.Clone(),
+		withMedia:   psq.withMedia.Clone(),
 		// clone intermediate query.
 		sql:  psq.sql.Clone(),
 		path: psq.path,
 	}
 }
 
-// WithVideo tells the query-builder to eager-load the nodes that are connected to
-// the "video" edge. The optional arguments are used to configure the query builder of the edge.
-func (psq *PlaySessionQuery) WithVideo(opts ...func(*VideoQuery)) *PlaySessionQuery {
-	query := (&VideoClient{config: psq.config}).Query()
+// WithClients tells the query-builder to eager-load the nodes that are connected to
+// the "clients" edge. The optional arguments are used to configure the query builder of the edge.
+func (psq *PlaySessionQuery) WithClients(opts ...func(*PlaybackClientQuery)) *PlaySessionQuery {
+	query := (&PlaybackClientClient{config: psq.config}).Query()
 	for _, opt := range opts {
 		opt(query)
 	}
-	psq.withVideo = query
+	psq.withClients = query
+	return psq
+}
+
+// WithMedia tells the query-builder to eager-load the nodes that are connected to
+// the "media" edge. The optional arguments are used to configure the query builder of the edge.
+func (psq *PlaySessionQuery) WithMedia(opts ...func(*PlaySessionMediaQuery)) *PlaySessionQuery {
+	query := (&PlaySessionMediaClient{config: psq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	psq.withMedia = query
 	return psq
 }
 
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
+//
+// Example:
+//
+//	var v []struct {
+//		CurrentTime int `json:"current_time,omitempty"`
+//		Count int `json:"count,omitempty"`
+//	}
+//
+//	client.PlaySession.Query().
+//		GroupBy(playsession.FieldCurrentTime).
+//		Aggregate(ent.Count()).
+//		Scan(ctx, &v)
 func (psq *PlaySessionQuery) GroupBy(field string, fields ...string) *PlaySessionGroupBy {
 	psq.ctx.Fields = append([]string{field}, fields...)
 	grbuild := &PlaySessionGroupBy{build: psq}
@@ -307,6 +356,16 @@ func (psq *PlaySessionQuery) GroupBy(field string, fields ...string) *PlaySessio
 
 // Select allows the selection one or more fields/columns for the given query,
 // instead of selecting all fields in the entity.
+//
+// Example:
+//
+//	var v []struct {
+//		CurrentTime int `json:"current_time,omitempty"`
+//	}
+//
+//	client.PlaySession.Query().
+//		Select(playsession.FieldCurrentTime).
+//		Scan(ctx, &v)
 func (psq *PlaySessionQuery) Select(fields ...string) *PlaySessionSelect {
 	psq.ctx.Fields = append(psq.ctx.Fields, fields...)
 	sbuild := &PlaySessionSelect{PlaySessionQuery: psq}
@@ -349,18 +408,12 @@ func (psq *PlaySessionQuery) prepareQuery(ctx context.Context) error {
 func (psq *PlaySessionQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*PlaySession, error) {
 	var (
 		nodes       = []*PlaySession{}
-		withFKs     = psq.withFKs
 		_spec       = psq.querySpec()
-		loadedTypes = [1]bool{
-			psq.withVideo != nil,
+		loadedTypes = [2]bool{
+			psq.withClients != nil,
+			psq.withMedia != nil,
 		}
 	)
-	if psq.withVideo != nil {
-		withFKs = true
-	}
-	if withFKs {
-		_spec.Node.Columns = append(_spec.Node.Columns, playsession.ForeignKeys...)
-	}
 	_spec.ScanValues = func(columns []string) ([]any, error) {
 		return (*PlaySession).scanValues(nil, columns)
 	}
@@ -382,9 +435,23 @@ func (psq *PlaySessionQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
-	if query := psq.withVideo; query != nil {
-		if err := psq.loadVideo(ctx, query, nodes, nil,
-			func(n *PlaySession, e *Video) { n.Edges.Video = e }); err != nil {
+	if query := psq.withClients; query != nil {
+		if err := psq.loadClients(ctx, query, nodes,
+			func(n *PlaySession) { n.Edges.Clients = []*PlaybackClient{} },
+			func(n *PlaySession, e *PlaybackClient) { n.Edges.Clients = append(n.Edges.Clients, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := psq.withMedia; query != nil {
+		if err := psq.loadMedia(ctx, query, nodes, nil,
+			func(n *PlaySession, e *PlaySessionMedia) { n.Edges.Media = e }); err != nil {
+			return nil, err
+		}
+	}
+	for name, query := range psq.withNamedClients {
+		if err := psq.loadClients(ctx, query, nodes,
+			func(n *PlaySession) { n.appendNamedClients(name) },
+			func(n *PlaySession, e *PlaybackClient) { n.appendNamedClients(name, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -396,35 +463,62 @@ func (psq *PlaySessionQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]
 	return nodes, nil
 }
 
-func (psq *PlaySessionQuery) loadVideo(ctx context.Context, query *VideoQuery, nodes []*PlaySession, init func(*PlaySession), assign func(*PlaySession, *Video)) error {
-	ids := make([]int, 0, len(nodes))
-	nodeids := make(map[int][]*PlaySession)
+func (psq *PlaySessionQuery) loadClients(ctx context.Context, query *PlaybackClientQuery, nodes []*PlaySession, init func(*PlaySession), assign func(*PlaySession, *PlaybackClient)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*PlaySession)
 	for i := range nodes {
-		if nodes[i].video_play_sessions == nil {
-			continue
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
 		}
-		fk := *nodes[i].video_play_sessions
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
 	}
-	if len(ids) == 0 {
-		return nil
-	}
-	query.Where(video.IDIn(ids...))
+	query.withFKs = true
+	query.Where(predicate.PlaybackClient(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(playsession.ClientsColumn), fks...))
+	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {
 		return err
 	}
 	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
+		fk := n.play_session_clients
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "play_session_clients" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
 		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "video_play_sessions" returned %v`, n.ID)
+			return fmt.Errorf(`unexpected referenced foreign-key "play_session_clients" returned %v for node %v`, *fk, n.ID)
 		}
-		for i := range nodes {
-			assign(nodes[i], n)
+		assign(node, n)
+	}
+	return nil
+}
+func (psq *PlaySessionQuery) loadMedia(ctx context.Context, query *PlaySessionMediaQuery, nodes []*PlaySession, init func(*PlaySession), assign func(*PlaySession, *PlaySessionMedia)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*PlaySession)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+	}
+	query.withFKs = true
+	query.Where(predicate.PlaySessionMedia(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(playsession.MediaColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.play_session_media
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "play_session_media" is nil for node %v`, n.ID)
 		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "play_session_media" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
 	}
 	return nil
 }
@@ -511,6 +605,20 @@ func (psq *PlaySessionQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		selector.Limit(*limit)
 	}
 	return selector
+}
+
+// WithNamedClients tells the query-builder to eager-load the nodes that are connected to the "clients"
+// edge with the given name. The optional arguments are used to configure the query builder of the edge.
+func (psq *PlaySessionQuery) WithNamedClients(name string, opts ...func(*PlaybackClientQuery)) *PlaySessionQuery {
+	query := (&PlaybackClientClient{config: psq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	if psq.withNamedClients == nil {
+		psq.withNamedClients = make(map[string]*PlaybackClientQuery)
+	}
+	psq.withNamedClients[name] = query
+	return psq
 }
 
 // PlaySessionGroupBy is the group-by builder for PlaySession entities.

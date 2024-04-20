@@ -170,6 +170,29 @@ func CreatedAtLTE(v time.Time) predicate.Video {
 	return predicate.Video(sql.FieldLTE(FieldCreatedAt, v))
 }
 
+// HasPlaySessionMedias applies the HasEdge predicate on the "play_session_medias" edge.
+func HasPlaySessionMedias() predicate.Video {
+	return predicate.Video(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, PlaySessionMediasTable, PlaySessionMediasColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasPlaySessionMediasWith applies the HasEdge predicate on the "play_session_medias" edge with a given conditions (other predicates).
+func HasPlaySessionMediasWith(preds ...predicate.PlaySessionMedia) predicate.Video {
+	return predicate.Video(func(s *sql.Selector) {
+		step := newPlaySessionMediasStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasLibrary applies the HasEdge predicate on the "library" edge.
 func HasLibrary() predicate.Video {
 	return predicate.Video(func(s *sql.Selector) {
@@ -185,29 +208,6 @@ func HasLibrary() predicate.Video {
 func HasLibraryWith(preds ...predicate.Library) predicate.Video {
 	return predicate.Video(func(s *sql.Selector) {
 		step := newLibraryStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
-}
-
-// HasPlaySessions applies the HasEdge predicate on the "play_sessions" edge.
-func HasPlaySessions() predicate.Video {
-	return predicate.Video(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, PlaySessionsTable, PlaySessionsColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasPlaySessionsWith applies the HasEdge predicate on the "play_sessions" edge with a given conditions (other predicates).
-func HasPlaySessionsWith(preds ...predicate.PlaySession) predicate.Video {
-	return predicate.Video(func(s *sql.Selector) {
-		step := newPlaySessionsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

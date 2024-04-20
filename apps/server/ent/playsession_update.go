@@ -10,9 +10,10 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/playbackclient"
 	"github.com/altierawr/vstreamer/ent/playsession"
+	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/predicate"
-	"github.com/altierawr/vstreamer/ent/video"
 )
 
 // PlaySessionUpdate is the builder for updating PlaySession entities.
@@ -28,23 +29,79 @@ func (psu *PlaySessionUpdate) Where(ps ...predicate.PlaySession) *PlaySessionUpd
 	return psu
 }
 
-// SetVideoID sets the "video" edge to the Video entity by ID.
-func (psu *PlaySessionUpdate) SetVideoID(id int) *PlaySessionUpdate {
-	psu.mutation.SetVideoID(id)
+// SetCurrentTime sets the "current_time" field.
+func (psu *PlaySessionUpdate) SetCurrentTime(i int) *PlaySessionUpdate {
+	psu.mutation.ResetCurrentTime()
+	psu.mutation.SetCurrentTime(i)
 	return psu
 }
 
-// SetNillableVideoID sets the "video" edge to the Video entity by ID if the given value is not nil.
-func (psu *PlaySessionUpdate) SetNillableVideoID(id *int) *PlaySessionUpdate {
-	if id != nil {
-		psu = psu.SetVideoID(*id)
+// SetNillableCurrentTime sets the "current_time" field if the given value is not nil.
+func (psu *PlaySessionUpdate) SetNillableCurrentTime(i *int) *PlaySessionUpdate {
+	if i != nil {
+		psu.SetCurrentTime(*i)
 	}
 	return psu
 }
 
-// SetVideo sets the "video" edge to the Video entity.
-func (psu *PlaySessionUpdate) SetVideo(v *Video) *PlaySessionUpdate {
-	return psu.SetVideoID(v.ID)
+// AddCurrentTime adds i to the "current_time" field.
+func (psu *PlaySessionUpdate) AddCurrentTime(i int) *PlaySessionUpdate {
+	psu.mutation.AddCurrentTime(i)
+	return psu
+}
+
+// ClearCurrentTime clears the value of the "current_time" field.
+func (psu *PlaySessionUpdate) ClearCurrentTime() *PlaySessionUpdate {
+	psu.mutation.ClearCurrentTime()
+	return psu
+}
+
+// SetState sets the "state" field.
+func (psu *PlaySessionUpdate) SetState(pl playsession.State) *PlaySessionUpdate {
+	psu.mutation.SetState(pl)
+	return psu
+}
+
+// SetNillableState sets the "state" field if the given value is not nil.
+func (psu *PlaySessionUpdate) SetNillableState(pl *playsession.State) *PlaySessionUpdate {
+	if pl != nil {
+		psu.SetState(*pl)
+	}
+	return psu
+}
+
+// AddClientIDs adds the "clients" edge to the PlaybackClient entity by IDs.
+func (psu *PlaySessionUpdate) AddClientIDs(ids ...int) *PlaySessionUpdate {
+	psu.mutation.AddClientIDs(ids...)
+	return psu
+}
+
+// AddClients adds the "clients" edges to the PlaybackClient entity.
+func (psu *PlaySessionUpdate) AddClients(p ...*PlaybackClient) *PlaySessionUpdate {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return psu.AddClientIDs(ids...)
+}
+
+// SetMediaID sets the "media" edge to the PlaySessionMedia entity by ID.
+func (psu *PlaySessionUpdate) SetMediaID(id int) *PlaySessionUpdate {
+	psu.mutation.SetMediaID(id)
+	return psu
+}
+
+// SetNillableMediaID sets the "media" edge to the PlaySessionMedia entity by ID if the given value is not nil.
+func (psu *PlaySessionUpdate) SetNillableMediaID(id *int) *PlaySessionUpdate {
+	if id != nil {
+		psu = psu.SetMediaID(*id)
+	}
+	return psu
+}
+
+// SetMedia sets the "media" edge to the PlaySessionMedia entity.
+func (psu *PlaySessionUpdate) SetMedia(p *PlaySessionMedia) *PlaySessionUpdate {
+	return psu.SetMediaID(p.ID)
 }
 
 // Mutation returns the PlaySessionMutation object of the builder.
@@ -52,9 +109,30 @@ func (psu *PlaySessionUpdate) Mutation() *PlaySessionMutation {
 	return psu.mutation
 }
 
-// ClearVideo clears the "video" edge to the Video entity.
-func (psu *PlaySessionUpdate) ClearVideo() *PlaySessionUpdate {
-	psu.mutation.ClearVideo()
+// ClearClients clears all "clients" edges to the PlaybackClient entity.
+func (psu *PlaySessionUpdate) ClearClients() *PlaySessionUpdate {
+	psu.mutation.ClearClients()
+	return psu
+}
+
+// RemoveClientIDs removes the "clients" edge to PlaybackClient entities by IDs.
+func (psu *PlaySessionUpdate) RemoveClientIDs(ids ...int) *PlaySessionUpdate {
+	psu.mutation.RemoveClientIDs(ids...)
+	return psu
+}
+
+// RemoveClients removes "clients" edges to PlaybackClient entities.
+func (psu *PlaySessionUpdate) RemoveClients(p ...*PlaybackClient) *PlaySessionUpdate {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return psu.RemoveClientIDs(ids...)
+}
+
+// ClearMedia clears the "media" edge to the PlaySessionMedia entity.
+func (psu *PlaySessionUpdate) ClearMedia() *PlaySessionUpdate {
+	psu.mutation.ClearMedia()
 	return psu
 }
 
@@ -85,7 +163,20 @@ func (psu *PlaySessionUpdate) ExecX(ctx context.Context) {
 	}
 }
 
+// check runs all checks and user-defined validators on the builder.
+func (psu *PlaySessionUpdate) check() error {
+	if v, ok := psu.mutation.State(); ok {
+		if err := playsession.StateValidator(v); err != nil {
+			return &ValidationError{Name: "state", err: fmt.Errorf(`ent: validator failed for field "PlaySession.state": %w`, err)}
+		}
+	}
+	return nil
+}
+
 func (psu *PlaySessionUpdate) sqlSave(ctx context.Context) (n int, err error) {
+	if err := psu.check(); err != nil {
+		return n, err
+	}
 	_spec := sqlgraph.NewUpdateSpec(playsession.Table, playsession.Columns, sqlgraph.NewFieldSpec(playsession.FieldID, field.TypeInt))
 	if ps := psu.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
@@ -94,28 +185,85 @@ func (psu *PlaySessionUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			}
 		}
 	}
-	if psu.mutation.VideoCleared() {
+	if value, ok := psu.mutation.CurrentTime(); ok {
+		_spec.SetField(playsession.FieldCurrentTime, field.TypeInt, value)
+	}
+	if value, ok := psu.mutation.AddedCurrentTime(); ok {
+		_spec.AddField(playsession.FieldCurrentTime, field.TypeInt, value)
+	}
+	if psu.mutation.CurrentTimeCleared() {
+		_spec.ClearField(playsession.FieldCurrentTime, field.TypeInt)
+	}
+	if value, ok := psu.mutation.State(); ok {
+		_spec.SetField(playsession.FieldState, field.TypeEnum, value)
+	}
+	if psu.mutation.ClientsCleared() {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   playsession.VideoTable,
-			Columns: []string{playsession.VideoColumn},
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsession.ClientsTable,
+			Columns: []string{playsession.ClientsColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(video.FieldID, field.TypeInt),
+				IDSpec: sqlgraph.NewFieldSpec(playbackclient.FieldID, field.TypeInt),
 			},
 		}
 		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if nodes := psu.mutation.VideoIDs(); len(nodes) > 0 {
+	if nodes := psu.mutation.RemovedClientsIDs(); len(nodes) > 0 && !psu.mutation.ClientsCleared() {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   playsession.VideoTable,
-			Columns: []string{playsession.VideoColumn},
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsession.ClientsTable,
+			Columns: []string{playsession.ClientsColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(video.FieldID, field.TypeInt),
+				IDSpec: sqlgraph.NewFieldSpec(playbackclient.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := psu.mutation.ClientsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsession.ClientsTable,
+			Columns: []string{playsession.ClientsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playbackclient.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if psu.mutation.MediaCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   playsession.MediaTable,
+			Columns: []string{playsession.MediaColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := psu.mutation.MediaIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   playsession.MediaTable,
+			Columns: []string{playsession.MediaColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -143,23 +291,79 @@ type PlaySessionUpdateOne struct {
 	mutation *PlaySessionMutation
 }
 
-// SetVideoID sets the "video" edge to the Video entity by ID.
-func (psuo *PlaySessionUpdateOne) SetVideoID(id int) *PlaySessionUpdateOne {
-	psuo.mutation.SetVideoID(id)
+// SetCurrentTime sets the "current_time" field.
+func (psuo *PlaySessionUpdateOne) SetCurrentTime(i int) *PlaySessionUpdateOne {
+	psuo.mutation.ResetCurrentTime()
+	psuo.mutation.SetCurrentTime(i)
 	return psuo
 }
 
-// SetNillableVideoID sets the "video" edge to the Video entity by ID if the given value is not nil.
-func (psuo *PlaySessionUpdateOne) SetNillableVideoID(id *int) *PlaySessionUpdateOne {
-	if id != nil {
-		psuo = psuo.SetVideoID(*id)
+// SetNillableCurrentTime sets the "current_time" field if the given value is not nil.
+func (psuo *PlaySessionUpdateOne) SetNillableCurrentTime(i *int) *PlaySessionUpdateOne {
+	if i != nil {
+		psuo.SetCurrentTime(*i)
 	}
 	return psuo
 }
 
-// SetVideo sets the "video" edge to the Video entity.
-func (psuo *PlaySessionUpdateOne) SetVideo(v *Video) *PlaySessionUpdateOne {
-	return psuo.SetVideoID(v.ID)
+// AddCurrentTime adds i to the "current_time" field.
+func (psuo *PlaySessionUpdateOne) AddCurrentTime(i int) *PlaySessionUpdateOne {
+	psuo.mutation.AddCurrentTime(i)
+	return psuo
+}
+
+// ClearCurrentTime clears the value of the "current_time" field.
+func (psuo *PlaySessionUpdateOne) ClearCurrentTime() *PlaySessionUpdateOne {
+	psuo.mutation.ClearCurrentTime()
+	return psuo
+}
+
+// SetState sets the "state" field.
+func (psuo *PlaySessionUpdateOne) SetState(pl playsession.State) *PlaySessionUpdateOne {
+	psuo.mutation.SetState(pl)
+	return psuo
+}
+
+// SetNillableState sets the "state" field if the given value is not nil.
+func (psuo *PlaySessionUpdateOne) SetNillableState(pl *playsession.State) *PlaySessionUpdateOne {
+	if pl != nil {
+		psuo.SetState(*pl)
+	}
+	return psuo
+}
+
+// AddClientIDs adds the "clients" edge to the PlaybackClient entity by IDs.
+func (psuo *PlaySessionUpdateOne) AddClientIDs(ids ...int) *PlaySessionUpdateOne {
+	psuo.mutation.AddClientIDs(ids...)
+	return psuo
+}
+
+// AddClients adds the "clients" edges to the PlaybackClient entity.
+func (psuo *PlaySessionUpdateOne) AddClients(p ...*PlaybackClient) *PlaySessionUpdateOne {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return psuo.AddClientIDs(ids...)
+}
+
+// SetMediaID sets the "media" edge to the PlaySessionMedia entity by ID.
+func (psuo *PlaySessionUpdateOne) SetMediaID(id int) *PlaySessionUpdateOne {
+	psuo.mutation.SetMediaID(id)
+	return psuo
+}
+
+// SetNillableMediaID sets the "media" edge to the PlaySessionMedia entity by ID if the given value is not nil.
+func (psuo *PlaySessionUpdateOne) SetNillableMediaID(id *int) *PlaySessionUpdateOne {
+	if id != nil {
+		psuo = psuo.SetMediaID(*id)
+	}
+	return psuo
+}
+
+// SetMedia sets the "media" edge to the PlaySessionMedia entity.
+func (psuo *PlaySessionUpdateOne) SetMedia(p *PlaySessionMedia) *PlaySessionUpdateOne {
+	return psuo.SetMediaID(p.ID)
 }
 
 // Mutation returns the PlaySessionMutation object of the builder.
@@ -167,9 +371,30 @@ func (psuo *PlaySessionUpdateOne) Mutation() *PlaySessionMutation {
 	return psuo.mutation
 }
 
-// ClearVideo clears the "video" edge to the Video entity.
-func (psuo *PlaySessionUpdateOne) ClearVideo() *PlaySessionUpdateOne {
-	psuo.mutation.ClearVideo()
+// ClearClients clears all "clients" edges to the PlaybackClient entity.
+func (psuo *PlaySessionUpdateOne) ClearClients() *PlaySessionUpdateOne {
+	psuo.mutation.ClearClients()
+	return psuo
+}
+
+// RemoveClientIDs removes the "clients" edge to PlaybackClient entities by IDs.
+func (psuo *PlaySessionUpdateOne) RemoveClientIDs(ids ...int) *PlaySessionUpdateOne {
+	psuo.mutation.RemoveClientIDs(ids...)
+	return psuo
+}
+
+// RemoveClients removes "clients" edges to PlaybackClient entities.
+func (psuo *PlaySessionUpdateOne) RemoveClients(p ...*PlaybackClient) *PlaySessionUpdateOne {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return psuo.RemoveClientIDs(ids...)
+}
+
+// ClearMedia clears the "media" edge to the PlaySessionMedia entity.
+func (psuo *PlaySessionUpdateOne) ClearMedia() *PlaySessionUpdateOne {
+	psuo.mutation.ClearMedia()
 	return psuo
 }
 
@@ -213,7 +438,20 @@ func (psuo *PlaySessionUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
+// check runs all checks and user-defined validators on the builder.
+func (psuo *PlaySessionUpdateOne) check() error {
+	if v, ok := psuo.mutation.State(); ok {
+		if err := playsession.StateValidator(v); err != nil {
+			return &ValidationError{Name: "state", err: fmt.Errorf(`ent: validator failed for field "PlaySession.state": %w`, err)}
+		}
+	}
+	return nil
+}
+
 func (psuo *PlaySessionUpdateOne) sqlSave(ctx context.Context) (_node *PlaySession, err error) {
+	if err := psuo.check(); err != nil {
+		return _node, err
+	}
 	_spec := sqlgraph.NewUpdateSpec(playsession.Table, playsession.Columns, sqlgraph.NewFieldSpec(playsession.FieldID, field.TypeInt))
 	id, ok := psuo.mutation.ID()
 	if !ok {
@@ -239,28 +477,85 @@ func (psuo *PlaySessionUpdateOne) sqlSave(ctx context.Context) (_node *PlaySessi
 			}
 		}
 	}
-	if psuo.mutation.VideoCleared() {
+	if value, ok := psuo.mutation.CurrentTime(); ok {
+		_spec.SetField(playsession.FieldCurrentTime, field.TypeInt, value)
+	}
+	if value, ok := psuo.mutation.AddedCurrentTime(); ok {
+		_spec.AddField(playsession.FieldCurrentTime, field.TypeInt, value)
+	}
+	if psuo.mutation.CurrentTimeCleared() {
+		_spec.ClearField(playsession.FieldCurrentTime, field.TypeInt)
+	}
+	if value, ok := psuo.mutation.State(); ok {
+		_spec.SetField(playsession.FieldState, field.TypeEnum, value)
+	}
+	if psuo.mutation.ClientsCleared() {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   playsession.VideoTable,
-			Columns: []string{playsession.VideoColumn},
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsession.ClientsTable,
+			Columns: []string{playsession.ClientsColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(video.FieldID, field.TypeInt),
+				IDSpec: sqlgraph.NewFieldSpec(playbackclient.FieldID, field.TypeInt),
 			},
 		}
 		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if nodes := psuo.mutation.VideoIDs(); len(nodes) > 0 {
+	if nodes := psuo.mutation.RemovedClientsIDs(); len(nodes) > 0 && !psuo.mutation.ClientsCleared() {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   playsession.VideoTable,
-			Columns: []string{playsession.VideoColumn},
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsession.ClientsTable,
+			Columns: []string{playsession.ClientsColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(video.FieldID, field.TypeInt),
+				IDSpec: sqlgraph.NewFieldSpec(playbackclient.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := psuo.mutation.ClientsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsession.ClientsTable,
+			Columns: []string{playsession.ClientsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playbackclient.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if psuo.mutation.MediaCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   playsession.MediaTable,
+			Columns: []string{playsession.MediaColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := psuo.mutation.MediaIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   playsession.MediaTable,
+			Columns: []string{playsession.MediaColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

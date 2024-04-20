@@ -18,12 +18,19 @@ const (
 	FieldPath = "path"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
+	// EdgePlaySessionMedias holds the string denoting the play_session_medias edge name in mutations.
+	EdgePlaySessionMedias = "play_session_medias"
 	// EdgeLibrary holds the string denoting the library edge name in mutations.
 	EdgeLibrary = "library"
-	// EdgePlaySessions holds the string denoting the play_sessions edge name in mutations.
-	EdgePlaySessions = "play_sessions"
 	// Table holds the table name of the video in the database.
 	Table = "videos"
+	// PlaySessionMediasTable is the table that holds the play_session_medias relation/edge.
+	PlaySessionMediasTable = "play_session_media"
+	// PlaySessionMediasInverseTable is the table name for the PlaySessionMedia entity.
+	// It exists in this package in order to avoid circular dependency with the "playsessionmedia" package.
+	PlaySessionMediasInverseTable = "play_session_media"
+	// PlaySessionMediasColumn is the table column denoting the play_session_medias relation/edge.
+	PlaySessionMediasColumn = "video_play_session_medias"
 	// LibraryTable is the table that holds the library relation/edge.
 	LibraryTable = "videos"
 	// LibraryInverseTable is the table name for the Library entity.
@@ -31,13 +38,6 @@ const (
 	LibraryInverseTable = "libraries"
 	// LibraryColumn is the table column denoting the library relation/edge.
 	LibraryColumn = "library_videos"
-	// PlaySessionsTable is the table that holds the play_sessions relation/edge.
-	PlaySessionsTable = "play_sessions"
-	// PlaySessionsInverseTable is the table name for the PlaySession entity.
-	// It exists in this package in order to avoid circular dependency with the "playsession" package.
-	PlaySessionsInverseTable = "play_sessions"
-	// PlaySessionsColumn is the table column denoting the play_sessions relation/edge.
-	PlaySessionsColumn = "video_play_sessions"
 )
 
 // Columns holds all SQL columns for video fields.
@@ -91,37 +91,37 @@ func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
 }
 
+// ByPlaySessionMediasCount orders the results by play_session_medias count.
+func ByPlaySessionMediasCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newPlaySessionMediasStep(), opts...)
+	}
+}
+
+// ByPlaySessionMedias orders the results by play_session_medias terms.
+func ByPlaySessionMedias(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newPlaySessionMediasStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByLibraryField orders the results by library field.
 func ByLibraryField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newLibraryStep(), sql.OrderByField(field, opts...))
 	}
 }
-
-// ByPlaySessionsCount orders the results by play_sessions count.
-func ByPlaySessionsCount(opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborsCount(s, newPlaySessionsStep(), opts...)
-	}
-}
-
-// ByPlaySessions orders the results by play_sessions terms.
-func ByPlaySessions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newPlaySessionsStep(), append([]sql.OrderTerm{term}, terms...)...)
-	}
+func newPlaySessionMediasStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(PlaySessionMediasInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, PlaySessionMediasTable, PlaySessionMediasColumn),
+	)
 }
 func newLibraryStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(LibraryInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2O, true, LibraryTable, LibraryColumn),
-	)
-}
-func newPlaySessionsStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(PlaySessionsInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.O2M, false, PlaySessionsTable, PlaySessionsColumn),
 	)
 }

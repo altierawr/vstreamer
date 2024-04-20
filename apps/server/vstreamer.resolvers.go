@@ -6,8 +6,10 @@ package vstreamer
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/altierawr/vstreamer/ent"
+	"github.com/altierawr/vstreamer/session"
 )
 
 // CreateVideo is the resolver for the createVideo field.
@@ -20,9 +22,15 @@ func (r *mutationResolver) CreateLibrary(ctx context.Context, input ent.CreateLi
 	return r.client.Library.Create().SetInput(input).Save(ctx)
 }
 
-// CreatePlaySession is the resolver for the createPlaySession field.
-func (r *mutationResolver) CreatePlaySession(ctx context.Context, input CreatePlaySessionInput) (*ent.PlaySession, error) {
-	return r.client.PlaySession.Create().SetVideoID(input.VideoID).Save(ctx)
+// PlayVideo is the resolver for the playVideo field.
+func (r *mutationResolver) PlayVideo(ctx context.Context, input PlayVideoInput) (*ent.PlaySession, error) {
+	playSession, err := session.CreatePlaySession(ctx, r.client, input.VideoID)
+	if err != nil {
+		fmt.Printf("error creating play session: %v\n", err)
+		return nil, err
+	}
+
+	return playSession, nil
 }
 
 // Mutation returns MutationResolver implementation.

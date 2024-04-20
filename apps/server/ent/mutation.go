@@ -11,9 +11,13 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/library"
+	"github.com/altierawr/vstreamer/ent/playbackclient"
 	"github.com/altierawr/vstreamer/ent/playsession"
+	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/predicate"
+	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/video"
 )
 
@@ -26,10 +30,697 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeLibrary     = "Library"
-	TypePlaySession = "PlaySession"
-	TypeVideo       = "Video"
+	TypeAudioTrack       = "AudioTrack"
+	TypeLibrary          = "Library"
+	TypePlaySession      = "PlaySession"
+	TypePlaySessionMedia = "PlaySessionMedia"
+	TypePlaybackClient   = "PlaybackClient"
+	TypeStream           = "Stream"
+	TypeVideo            = "Video"
 )
+
+// AudioTrackMutation represents an operation that mutates the AudioTrack nodes in the graph.
+type AudioTrackMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int
+	name           *string
+	nr_channels    *int
+	addnr_channels *int
+	channel_layout *string
+	language       *string
+	codecs         *[]string
+	appendcodecs   []string
+	clearedFields  map[string]struct{}
+	media          *int
+	clearedmedia   bool
+	done           bool
+	oldValue       func(context.Context) (*AudioTrack, error)
+	predicates     []predicate.AudioTrack
+}
+
+var _ ent.Mutation = (*AudioTrackMutation)(nil)
+
+// audiotrackOption allows management of the mutation configuration using functional options.
+type audiotrackOption func(*AudioTrackMutation)
+
+// newAudioTrackMutation creates new mutation for the AudioTrack entity.
+func newAudioTrackMutation(c config, op Op, opts ...audiotrackOption) *AudioTrackMutation {
+	m := &AudioTrackMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeAudioTrack,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withAudioTrackID sets the ID field of the mutation.
+func withAudioTrackID(id int) audiotrackOption {
+	return func(m *AudioTrackMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *AudioTrack
+		)
+		m.oldValue = func(ctx context.Context) (*AudioTrack, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().AudioTrack.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withAudioTrack sets the old AudioTrack of the mutation.
+func withAudioTrack(node *AudioTrack) audiotrackOption {
+	return func(m *AudioTrackMutation) {
+		m.oldValue = func(context.Context) (*AudioTrack, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m AudioTrackMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m AudioTrackMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *AudioTrackMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *AudioTrackMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().AudioTrack.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *AudioTrackMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *AudioTrackMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the AudioTrack entity.
+// If the AudioTrack object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AudioTrackMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *AudioTrackMutation) ResetName() {
+	m.name = nil
+}
+
+// SetNrChannels sets the "nr_channels" field.
+func (m *AudioTrackMutation) SetNrChannels(i int) {
+	m.nr_channels = &i
+	m.addnr_channels = nil
+}
+
+// NrChannels returns the value of the "nr_channels" field in the mutation.
+func (m *AudioTrackMutation) NrChannels() (r int, exists bool) {
+	v := m.nr_channels
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNrChannels returns the old "nr_channels" field's value of the AudioTrack entity.
+// If the AudioTrack object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AudioTrackMutation) OldNrChannels(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNrChannels is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNrChannels requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNrChannels: %w", err)
+	}
+	return oldValue.NrChannels, nil
+}
+
+// AddNrChannels adds i to the "nr_channels" field.
+func (m *AudioTrackMutation) AddNrChannels(i int) {
+	if m.addnr_channels != nil {
+		*m.addnr_channels += i
+	} else {
+		m.addnr_channels = &i
+	}
+}
+
+// AddedNrChannels returns the value that was added to the "nr_channels" field in this mutation.
+func (m *AudioTrackMutation) AddedNrChannels() (r int, exists bool) {
+	v := m.addnr_channels
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetNrChannels resets all changes to the "nr_channels" field.
+func (m *AudioTrackMutation) ResetNrChannels() {
+	m.nr_channels = nil
+	m.addnr_channels = nil
+}
+
+// SetChannelLayout sets the "channel_layout" field.
+func (m *AudioTrackMutation) SetChannelLayout(s string) {
+	m.channel_layout = &s
+}
+
+// ChannelLayout returns the value of the "channel_layout" field in the mutation.
+func (m *AudioTrackMutation) ChannelLayout() (r string, exists bool) {
+	v := m.channel_layout
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChannelLayout returns the old "channel_layout" field's value of the AudioTrack entity.
+// If the AudioTrack object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AudioTrackMutation) OldChannelLayout(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChannelLayout is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChannelLayout requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChannelLayout: %w", err)
+	}
+	return oldValue.ChannelLayout, nil
+}
+
+// ResetChannelLayout resets all changes to the "channel_layout" field.
+func (m *AudioTrackMutation) ResetChannelLayout() {
+	m.channel_layout = nil
+}
+
+// SetLanguage sets the "language" field.
+func (m *AudioTrackMutation) SetLanguage(s string) {
+	m.language = &s
+}
+
+// Language returns the value of the "language" field in the mutation.
+func (m *AudioTrackMutation) Language() (r string, exists bool) {
+	v := m.language
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLanguage returns the old "language" field's value of the AudioTrack entity.
+// If the AudioTrack object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AudioTrackMutation) OldLanguage(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLanguage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLanguage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLanguage: %w", err)
+	}
+	return oldValue.Language, nil
+}
+
+// ClearLanguage clears the value of the "language" field.
+func (m *AudioTrackMutation) ClearLanguage() {
+	m.language = nil
+	m.clearedFields[audiotrack.FieldLanguage] = struct{}{}
+}
+
+// LanguageCleared returns if the "language" field was cleared in this mutation.
+func (m *AudioTrackMutation) LanguageCleared() bool {
+	_, ok := m.clearedFields[audiotrack.FieldLanguage]
+	return ok
+}
+
+// ResetLanguage resets all changes to the "language" field.
+func (m *AudioTrackMutation) ResetLanguage() {
+	m.language = nil
+	delete(m.clearedFields, audiotrack.FieldLanguage)
+}
+
+// SetCodecs sets the "codecs" field.
+func (m *AudioTrackMutation) SetCodecs(s []string) {
+	m.codecs = &s
+	m.appendcodecs = nil
+}
+
+// Codecs returns the value of the "codecs" field in the mutation.
+func (m *AudioTrackMutation) Codecs() (r []string, exists bool) {
+	v := m.codecs
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCodecs returns the old "codecs" field's value of the AudioTrack entity.
+// If the AudioTrack object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AudioTrackMutation) OldCodecs(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCodecs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCodecs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCodecs: %w", err)
+	}
+	return oldValue.Codecs, nil
+}
+
+// AppendCodecs adds s to the "codecs" field.
+func (m *AudioTrackMutation) AppendCodecs(s []string) {
+	m.appendcodecs = append(m.appendcodecs, s...)
+}
+
+// AppendedCodecs returns the list of values that were appended to the "codecs" field in this mutation.
+func (m *AudioTrackMutation) AppendedCodecs() ([]string, bool) {
+	if len(m.appendcodecs) == 0 {
+		return nil, false
+	}
+	return m.appendcodecs, true
+}
+
+// ResetCodecs resets all changes to the "codecs" field.
+func (m *AudioTrackMutation) ResetCodecs() {
+	m.codecs = nil
+	m.appendcodecs = nil
+}
+
+// SetMediaID sets the "media" edge to the PlaySessionMedia entity by id.
+func (m *AudioTrackMutation) SetMediaID(id int) {
+	m.media = &id
+}
+
+// ClearMedia clears the "media" edge to the PlaySessionMedia entity.
+func (m *AudioTrackMutation) ClearMedia() {
+	m.clearedmedia = true
+}
+
+// MediaCleared reports if the "media" edge to the PlaySessionMedia entity was cleared.
+func (m *AudioTrackMutation) MediaCleared() bool {
+	return m.clearedmedia
+}
+
+// MediaID returns the "media" edge ID in the mutation.
+func (m *AudioTrackMutation) MediaID() (id int, exists bool) {
+	if m.media != nil {
+		return *m.media, true
+	}
+	return
+}
+
+// MediaIDs returns the "media" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// MediaID instead. It exists only for internal usage by the builders.
+func (m *AudioTrackMutation) MediaIDs() (ids []int) {
+	if id := m.media; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetMedia resets all changes to the "media" edge.
+func (m *AudioTrackMutation) ResetMedia() {
+	m.media = nil
+	m.clearedmedia = false
+}
+
+// Where appends a list predicates to the AudioTrackMutation builder.
+func (m *AudioTrackMutation) Where(ps ...predicate.AudioTrack) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the AudioTrackMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *AudioTrackMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.AudioTrack, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *AudioTrackMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *AudioTrackMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (AudioTrack).
+func (m *AudioTrackMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *AudioTrackMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.name != nil {
+		fields = append(fields, audiotrack.FieldName)
+	}
+	if m.nr_channels != nil {
+		fields = append(fields, audiotrack.FieldNrChannels)
+	}
+	if m.channel_layout != nil {
+		fields = append(fields, audiotrack.FieldChannelLayout)
+	}
+	if m.language != nil {
+		fields = append(fields, audiotrack.FieldLanguage)
+	}
+	if m.codecs != nil {
+		fields = append(fields, audiotrack.FieldCodecs)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *AudioTrackMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case audiotrack.FieldName:
+		return m.Name()
+	case audiotrack.FieldNrChannels:
+		return m.NrChannels()
+	case audiotrack.FieldChannelLayout:
+		return m.ChannelLayout()
+	case audiotrack.FieldLanguage:
+		return m.Language()
+	case audiotrack.FieldCodecs:
+		return m.Codecs()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *AudioTrackMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case audiotrack.FieldName:
+		return m.OldName(ctx)
+	case audiotrack.FieldNrChannels:
+		return m.OldNrChannels(ctx)
+	case audiotrack.FieldChannelLayout:
+		return m.OldChannelLayout(ctx)
+	case audiotrack.FieldLanguage:
+		return m.OldLanguage(ctx)
+	case audiotrack.FieldCodecs:
+		return m.OldCodecs(ctx)
+	}
+	return nil, fmt.Errorf("unknown AudioTrack field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AudioTrackMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case audiotrack.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case audiotrack.FieldNrChannels:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNrChannels(v)
+		return nil
+	case audiotrack.FieldChannelLayout:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChannelLayout(v)
+		return nil
+	case audiotrack.FieldLanguage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLanguage(v)
+		return nil
+	case audiotrack.FieldCodecs:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCodecs(v)
+		return nil
+	}
+	return fmt.Errorf("unknown AudioTrack field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *AudioTrackMutation) AddedFields() []string {
+	var fields []string
+	if m.addnr_channels != nil {
+		fields = append(fields, audiotrack.FieldNrChannels)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *AudioTrackMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case audiotrack.FieldNrChannels:
+		return m.AddedNrChannels()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AudioTrackMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case audiotrack.FieldNrChannels:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddNrChannels(v)
+		return nil
+	}
+	return fmt.Errorf("unknown AudioTrack numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *AudioTrackMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(audiotrack.FieldLanguage) {
+		fields = append(fields, audiotrack.FieldLanguage)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *AudioTrackMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *AudioTrackMutation) ClearField(name string) error {
+	switch name {
+	case audiotrack.FieldLanguage:
+		m.ClearLanguage()
+		return nil
+	}
+	return fmt.Errorf("unknown AudioTrack nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *AudioTrackMutation) ResetField(name string) error {
+	switch name {
+	case audiotrack.FieldName:
+		m.ResetName()
+		return nil
+	case audiotrack.FieldNrChannels:
+		m.ResetNrChannels()
+		return nil
+	case audiotrack.FieldChannelLayout:
+		m.ResetChannelLayout()
+		return nil
+	case audiotrack.FieldLanguage:
+		m.ResetLanguage()
+		return nil
+	case audiotrack.FieldCodecs:
+		m.ResetCodecs()
+		return nil
+	}
+	return fmt.Errorf("unknown AudioTrack field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *AudioTrackMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.media != nil {
+		edges = append(edges, audiotrack.EdgeMedia)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *AudioTrackMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case audiotrack.EdgeMedia:
+		if id := m.media; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *AudioTrackMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *AudioTrackMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *AudioTrackMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedmedia {
+		edges = append(edges, audiotrack.EdgeMedia)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *AudioTrackMutation) EdgeCleared(name string) bool {
+	switch name {
+	case audiotrack.EdgeMedia:
+		return m.clearedmedia
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *AudioTrackMutation) ClearEdge(name string) error {
+	switch name {
+	case audiotrack.EdgeMedia:
+		m.ClearMedia()
+		return nil
+	}
+	return fmt.Errorf("unknown AudioTrack unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *AudioTrackMutation) ResetEdge(name string) error {
+	switch name {
+	case audiotrack.EdgeMedia:
+		m.ResetMedia()
+		return nil
+	}
+	return fmt.Errorf("unknown AudioTrack edge %s", name)
+}
 
 // LibraryMutation represents an operation that mutates the Library nodes in the graph.
 type LibraryMutation struct {
@@ -507,15 +1198,21 @@ func (m *LibraryMutation) ResetEdge(name string) error {
 // PlaySessionMutation represents an operation that mutates the PlaySession nodes in the graph.
 type PlaySessionMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *int
-	clearedFields map[string]struct{}
-	video         *int
-	clearedvideo  bool
-	done          bool
-	oldValue      func(context.Context) (*PlaySession, error)
-	predicates    []predicate.PlaySession
+	op              Op
+	typ             string
+	id              *int
+	current_time    *int
+	addcurrent_time *int
+	state           *playsession.State
+	clearedFields   map[string]struct{}
+	clients         map[int]struct{}
+	removedclients  map[int]struct{}
+	clearedclients  bool
+	media           *int
+	clearedmedia    bool
+	done            bool
+	oldValue        func(context.Context) (*PlaySession, error)
+	predicates      []predicate.PlaySession
 }
 
 var _ ent.Mutation = (*PlaySessionMutation)(nil)
@@ -616,43 +1313,203 @@ func (m *PlaySessionMutation) IDs(ctx context.Context) ([]int, error) {
 	}
 }
 
-// SetVideoID sets the "video" edge to the Video entity by id.
-func (m *PlaySessionMutation) SetVideoID(id int) {
-	m.video = &id
+// SetCurrentTime sets the "current_time" field.
+func (m *PlaySessionMutation) SetCurrentTime(i int) {
+	m.current_time = &i
+	m.addcurrent_time = nil
 }
 
-// ClearVideo clears the "video" edge to the Video entity.
-func (m *PlaySessionMutation) ClearVideo() {
-	m.clearedvideo = true
+// CurrentTime returns the value of the "current_time" field in the mutation.
+func (m *PlaySessionMutation) CurrentTime() (r int, exists bool) {
+	v := m.current_time
+	if v == nil {
+		return
+	}
+	return *v, true
 }
 
-// VideoCleared reports if the "video" edge to the Video entity was cleared.
-func (m *PlaySessionMutation) VideoCleared() bool {
-	return m.clearedvideo
+// OldCurrentTime returns the old "current_time" field's value of the PlaySession entity.
+// If the PlaySession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PlaySessionMutation) OldCurrentTime(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCurrentTime is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCurrentTime requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCurrentTime: %w", err)
+	}
+	return oldValue.CurrentTime, nil
 }
 
-// VideoID returns the "video" edge ID in the mutation.
-func (m *PlaySessionMutation) VideoID() (id int, exists bool) {
-	if m.video != nil {
-		return *m.video, true
+// AddCurrentTime adds i to the "current_time" field.
+func (m *PlaySessionMutation) AddCurrentTime(i int) {
+	if m.addcurrent_time != nil {
+		*m.addcurrent_time += i
+	} else {
+		m.addcurrent_time = &i
+	}
+}
+
+// AddedCurrentTime returns the value that was added to the "current_time" field in this mutation.
+func (m *PlaySessionMutation) AddedCurrentTime() (r int, exists bool) {
+	v := m.addcurrent_time
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearCurrentTime clears the value of the "current_time" field.
+func (m *PlaySessionMutation) ClearCurrentTime() {
+	m.current_time = nil
+	m.addcurrent_time = nil
+	m.clearedFields[playsession.FieldCurrentTime] = struct{}{}
+}
+
+// CurrentTimeCleared returns if the "current_time" field was cleared in this mutation.
+func (m *PlaySessionMutation) CurrentTimeCleared() bool {
+	_, ok := m.clearedFields[playsession.FieldCurrentTime]
+	return ok
+}
+
+// ResetCurrentTime resets all changes to the "current_time" field.
+func (m *PlaySessionMutation) ResetCurrentTime() {
+	m.current_time = nil
+	m.addcurrent_time = nil
+	delete(m.clearedFields, playsession.FieldCurrentTime)
+}
+
+// SetState sets the "state" field.
+func (m *PlaySessionMutation) SetState(pl playsession.State) {
+	m.state = &pl
+}
+
+// State returns the value of the "state" field in the mutation.
+func (m *PlaySessionMutation) State() (r playsession.State, exists bool) {
+	v := m.state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldState returns the old "state" field's value of the PlaySession entity.
+// If the PlaySession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PlaySessionMutation) OldState(ctx context.Context) (v playsession.State, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldState: %w", err)
+	}
+	return oldValue.State, nil
+}
+
+// ResetState resets all changes to the "state" field.
+func (m *PlaySessionMutation) ResetState() {
+	m.state = nil
+}
+
+// AddClientIDs adds the "clients" edge to the PlaybackClient entity by ids.
+func (m *PlaySessionMutation) AddClientIDs(ids ...int) {
+	if m.clients == nil {
+		m.clients = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.clients[ids[i]] = struct{}{}
+	}
+}
+
+// ClearClients clears the "clients" edge to the PlaybackClient entity.
+func (m *PlaySessionMutation) ClearClients() {
+	m.clearedclients = true
+}
+
+// ClientsCleared reports if the "clients" edge to the PlaybackClient entity was cleared.
+func (m *PlaySessionMutation) ClientsCleared() bool {
+	return m.clearedclients
+}
+
+// RemoveClientIDs removes the "clients" edge to the PlaybackClient entity by IDs.
+func (m *PlaySessionMutation) RemoveClientIDs(ids ...int) {
+	if m.removedclients == nil {
+		m.removedclients = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.clients, ids[i])
+		m.removedclients[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedClients returns the removed IDs of the "clients" edge to the PlaybackClient entity.
+func (m *PlaySessionMutation) RemovedClientsIDs() (ids []int) {
+	for id := range m.removedclients {
+		ids = append(ids, id)
 	}
 	return
 }
 
-// VideoIDs returns the "video" edge IDs in the mutation.
+// ClientsIDs returns the "clients" edge IDs in the mutation.
+func (m *PlaySessionMutation) ClientsIDs() (ids []int) {
+	for id := range m.clients {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetClients resets all changes to the "clients" edge.
+func (m *PlaySessionMutation) ResetClients() {
+	m.clients = nil
+	m.clearedclients = false
+	m.removedclients = nil
+}
+
+// SetMediaID sets the "media" edge to the PlaySessionMedia entity by id.
+func (m *PlaySessionMutation) SetMediaID(id int) {
+	m.media = &id
+}
+
+// ClearMedia clears the "media" edge to the PlaySessionMedia entity.
+func (m *PlaySessionMutation) ClearMedia() {
+	m.clearedmedia = true
+}
+
+// MediaCleared reports if the "media" edge to the PlaySessionMedia entity was cleared.
+func (m *PlaySessionMutation) MediaCleared() bool {
+	return m.clearedmedia
+}
+
+// MediaID returns the "media" edge ID in the mutation.
+func (m *PlaySessionMutation) MediaID() (id int, exists bool) {
+	if m.media != nil {
+		return *m.media, true
+	}
+	return
+}
+
+// MediaIDs returns the "media" edge IDs in the mutation.
 // Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
-// VideoID instead. It exists only for internal usage by the builders.
-func (m *PlaySessionMutation) VideoIDs() (ids []int) {
-	if id := m.video; id != nil {
+// MediaID instead. It exists only for internal usage by the builders.
+func (m *PlaySessionMutation) MediaIDs() (ids []int) {
+	if id := m.media; id != nil {
 		ids = append(ids, *id)
 	}
 	return
 }
 
-// ResetVideo resets all changes to the "video" edge.
-func (m *PlaySessionMutation) ResetVideo() {
-	m.video = nil
-	m.clearedvideo = false
+// ResetMedia resets all changes to the "media" edge.
+func (m *PlaySessionMutation) ResetMedia() {
+	m.media = nil
+	m.clearedmedia = false
 }
 
 // Where appends a list predicates to the PlaySessionMutation builder.
@@ -689,7 +1546,13 @@ func (m *PlaySessionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PlaySessionMutation) Fields() []string {
-	fields := make([]string, 0, 0)
+	fields := make([]string, 0, 2)
+	if m.current_time != nil {
+		fields = append(fields, playsession.FieldCurrentTime)
+	}
+	if m.state != nil {
+		fields = append(fields, playsession.FieldState)
+	}
 	return fields
 }
 
@@ -697,6 +1560,12 @@ func (m *PlaySessionMutation) Fields() []string {
 // return value indicates that this field was not set, or was not defined in the
 // schema.
 func (m *PlaySessionMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case playsession.FieldCurrentTime:
+		return m.CurrentTime()
+	case playsession.FieldState:
+		return m.State()
+	}
 	return nil, false
 }
 
@@ -704,6 +1573,12 @@ func (m *PlaySessionMutation) Field(name string) (ent.Value, bool) {
 // returned if the mutation operation is not UpdateOne, or the query to the
 // database failed.
 func (m *PlaySessionMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case playsession.FieldCurrentTime:
+		return m.OldCurrentTime(ctx)
+	case playsession.FieldState:
+		return m.OldState(ctx)
+	}
 	return nil, fmt.Errorf("unknown PlaySession field %s", name)
 }
 
@@ -712,6 +1587,20 @@ func (m *PlaySessionMutation) OldField(ctx context.Context, name string) (ent.Va
 // type.
 func (m *PlaySessionMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case playsession.FieldCurrentTime:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCurrentTime(v)
+		return nil
+	case playsession.FieldState:
+		v, ok := value.(playsession.State)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetState(v)
+		return nil
 	}
 	return fmt.Errorf("unknown PlaySession field %s", name)
 }
@@ -719,13 +1608,21 @@ func (m *PlaySessionMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *PlaySessionMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addcurrent_time != nil {
+		fields = append(fields, playsession.FieldCurrentTime)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *PlaySessionMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case playsession.FieldCurrentTime:
+		return m.AddedCurrentTime()
+	}
 	return nil, false
 }
 
@@ -733,13 +1630,26 @@ func (m *PlaySessionMutation) AddedField(name string) (ent.Value, bool) {
 // the field is not defined in the schema, or if the type mismatched the field
 // type.
 func (m *PlaySessionMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case playsession.FieldCurrentTime:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCurrentTime(v)
+		return nil
+	}
 	return fmt.Errorf("unknown PlaySession numeric field %s", name)
 }
 
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *PlaySessionMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(playsession.FieldCurrentTime) {
+		fields = append(fields, playsession.FieldCurrentTime)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -752,20 +1662,36 @@ func (m *PlaySessionMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *PlaySessionMutation) ClearField(name string) error {
+	switch name {
+	case playsession.FieldCurrentTime:
+		m.ClearCurrentTime()
+		return nil
+	}
 	return fmt.Errorf("unknown PlaySession nullable field %s", name)
 }
 
 // ResetField resets all changes in the mutation for the field with the given name.
 // It returns an error if the field is not defined in the schema.
 func (m *PlaySessionMutation) ResetField(name string) error {
+	switch name {
+	case playsession.FieldCurrentTime:
+		m.ResetCurrentTime()
+		return nil
+	case playsession.FieldState:
+		m.ResetState()
+		return nil
+	}
 	return fmt.Errorf("unknown PlaySession field %s", name)
 }
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *PlaySessionMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
-	if m.video != nil {
-		edges = append(edges, playsession.EdgeVideo)
+	edges := make([]string, 0, 2)
+	if m.clients != nil {
+		edges = append(edges, playsession.EdgeClients)
+	}
+	if m.media != nil {
+		edges = append(edges, playsession.EdgeMedia)
 	}
 	return edges
 }
@@ -774,8 +1700,14 @@ func (m *PlaySessionMutation) AddedEdges() []string {
 // name in this mutation.
 func (m *PlaySessionMutation) AddedIDs(name string) []ent.Value {
 	switch name {
-	case playsession.EdgeVideo:
-		if id := m.video; id != nil {
+	case playsession.EdgeClients:
+		ids := make([]ent.Value, 0, len(m.clients))
+		for id := range m.clients {
+			ids = append(ids, id)
+		}
+		return ids
+	case playsession.EdgeMedia:
+		if id := m.media; id != nil {
 			return []ent.Value{*id}
 		}
 	}
@@ -784,21 +1716,35 @@ func (m *PlaySessionMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *PlaySessionMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
+	if m.removedclients != nil {
+		edges = append(edges, playsession.EdgeClients)
+	}
 	return edges
 }
 
 // RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
 // the given name in this mutation.
 func (m *PlaySessionMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case playsession.EdgeClients:
+		ids := make([]ent.Value, 0, len(m.removedclients))
+		for id := range m.removedclients {
+			ids = append(ids, id)
+		}
+		return ids
+	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *PlaySessionMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
-	if m.clearedvideo {
-		edges = append(edges, playsession.EdgeVideo)
+	edges := make([]string, 0, 2)
+	if m.clearedclients {
+		edges = append(edges, playsession.EdgeClients)
+	}
+	if m.clearedmedia {
+		edges = append(edges, playsession.EdgeMedia)
 	}
 	return edges
 }
@@ -807,8 +1753,10 @@ func (m *PlaySessionMutation) ClearedEdges() []string {
 // was cleared in this mutation.
 func (m *PlaySessionMutation) EdgeCleared(name string) bool {
 	switch name {
-	case playsession.EdgeVideo:
-		return m.clearedvideo
+	case playsession.EdgeClients:
+		return m.clearedclients
+	case playsession.EdgeMedia:
+		return m.clearedmedia
 	}
 	return false
 }
@@ -817,8 +1765,8 @@ func (m *PlaySessionMutation) EdgeCleared(name string) bool {
 // if that edge is not defined in the schema.
 func (m *PlaySessionMutation) ClearEdge(name string) error {
 	switch name {
-	case playsession.EdgeVideo:
-		m.ClearVideo()
+	case playsession.EdgeMedia:
+		m.ClearMedia()
 		return nil
 	}
 	return fmt.Errorf("unknown PlaySession unique edge %s", name)
@@ -828,30 +1776,1855 @@ func (m *PlaySessionMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *PlaySessionMutation) ResetEdge(name string) error {
 	switch name {
-	case playsession.EdgeVideo:
-		m.ResetVideo()
+	case playsession.EdgeClients:
+		m.ResetClients()
+		return nil
+	case playsession.EdgeMedia:
+		m.ResetMedia()
 		return nil
 	}
 	return fmt.Errorf("unknown PlaySession edge %s", name)
 }
 
+// PlaySessionMediaMutation represents an operation that mutates the PlaySessionMedia nodes in the graph.
+type PlaySessionMediaMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *int
+	video_codecs        *[]string
+	appendvideo_codecs  []string
+	resolutions         *[]string
+	appendresolutions   []string
+	clearedFields       map[string]struct{}
+	audio_tracks        map[int]struct{}
+	removedaudio_tracks map[int]struct{}
+	clearedaudio_tracks bool
+	video               *int
+	clearedvideo        bool
+	session             *int
+	clearedsession      bool
+	done                bool
+	oldValue            func(context.Context) (*PlaySessionMedia, error)
+	predicates          []predicate.PlaySessionMedia
+}
+
+var _ ent.Mutation = (*PlaySessionMediaMutation)(nil)
+
+// playsessionmediaOption allows management of the mutation configuration using functional options.
+type playsessionmediaOption func(*PlaySessionMediaMutation)
+
+// newPlaySessionMediaMutation creates new mutation for the PlaySessionMedia entity.
+func newPlaySessionMediaMutation(c config, op Op, opts ...playsessionmediaOption) *PlaySessionMediaMutation {
+	m := &PlaySessionMediaMutation{
+		config:        c,
+		op:            op,
+		typ:           TypePlaySessionMedia,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withPlaySessionMediaID sets the ID field of the mutation.
+func withPlaySessionMediaID(id int) playsessionmediaOption {
+	return func(m *PlaySessionMediaMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *PlaySessionMedia
+		)
+		m.oldValue = func(ctx context.Context) (*PlaySessionMedia, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().PlaySessionMedia.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withPlaySessionMedia sets the old PlaySessionMedia of the mutation.
+func withPlaySessionMedia(node *PlaySessionMedia) playsessionmediaOption {
+	return func(m *PlaySessionMediaMutation) {
+		m.oldValue = func(context.Context) (*PlaySessionMedia, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m PlaySessionMediaMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m PlaySessionMediaMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *PlaySessionMediaMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *PlaySessionMediaMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().PlaySessionMedia.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetVideoCodecs sets the "video_codecs" field.
+func (m *PlaySessionMediaMutation) SetVideoCodecs(s []string) {
+	m.video_codecs = &s
+	m.appendvideo_codecs = nil
+}
+
+// VideoCodecs returns the value of the "video_codecs" field in the mutation.
+func (m *PlaySessionMediaMutation) VideoCodecs() (r []string, exists bool) {
+	v := m.video_codecs
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVideoCodecs returns the old "video_codecs" field's value of the PlaySessionMedia entity.
+// If the PlaySessionMedia object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PlaySessionMediaMutation) OldVideoCodecs(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVideoCodecs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVideoCodecs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVideoCodecs: %w", err)
+	}
+	return oldValue.VideoCodecs, nil
+}
+
+// AppendVideoCodecs adds s to the "video_codecs" field.
+func (m *PlaySessionMediaMutation) AppendVideoCodecs(s []string) {
+	m.appendvideo_codecs = append(m.appendvideo_codecs, s...)
+}
+
+// AppendedVideoCodecs returns the list of values that were appended to the "video_codecs" field in this mutation.
+func (m *PlaySessionMediaMutation) AppendedVideoCodecs() ([]string, bool) {
+	if len(m.appendvideo_codecs) == 0 {
+		return nil, false
+	}
+	return m.appendvideo_codecs, true
+}
+
+// ResetVideoCodecs resets all changes to the "video_codecs" field.
+func (m *PlaySessionMediaMutation) ResetVideoCodecs() {
+	m.video_codecs = nil
+	m.appendvideo_codecs = nil
+}
+
+// SetResolutions sets the "resolutions" field.
+func (m *PlaySessionMediaMutation) SetResolutions(s []string) {
+	m.resolutions = &s
+	m.appendresolutions = nil
+}
+
+// Resolutions returns the value of the "resolutions" field in the mutation.
+func (m *PlaySessionMediaMutation) Resolutions() (r []string, exists bool) {
+	v := m.resolutions
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResolutions returns the old "resolutions" field's value of the PlaySessionMedia entity.
+// If the PlaySessionMedia object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PlaySessionMediaMutation) OldResolutions(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResolutions is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResolutions requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResolutions: %w", err)
+	}
+	return oldValue.Resolutions, nil
+}
+
+// AppendResolutions adds s to the "resolutions" field.
+func (m *PlaySessionMediaMutation) AppendResolutions(s []string) {
+	m.appendresolutions = append(m.appendresolutions, s...)
+}
+
+// AppendedResolutions returns the list of values that were appended to the "resolutions" field in this mutation.
+func (m *PlaySessionMediaMutation) AppendedResolutions() ([]string, bool) {
+	if len(m.appendresolutions) == 0 {
+		return nil, false
+	}
+	return m.appendresolutions, true
+}
+
+// ResetResolutions resets all changes to the "resolutions" field.
+func (m *PlaySessionMediaMutation) ResetResolutions() {
+	m.resolutions = nil
+	m.appendresolutions = nil
+}
+
+// AddAudioTrackIDs adds the "audio_tracks" edge to the AudioTrack entity by ids.
+func (m *PlaySessionMediaMutation) AddAudioTrackIDs(ids ...int) {
+	if m.audio_tracks == nil {
+		m.audio_tracks = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.audio_tracks[ids[i]] = struct{}{}
+	}
+}
+
+// ClearAudioTracks clears the "audio_tracks" edge to the AudioTrack entity.
+func (m *PlaySessionMediaMutation) ClearAudioTracks() {
+	m.clearedaudio_tracks = true
+}
+
+// AudioTracksCleared reports if the "audio_tracks" edge to the AudioTrack entity was cleared.
+func (m *PlaySessionMediaMutation) AudioTracksCleared() bool {
+	return m.clearedaudio_tracks
+}
+
+// RemoveAudioTrackIDs removes the "audio_tracks" edge to the AudioTrack entity by IDs.
+func (m *PlaySessionMediaMutation) RemoveAudioTrackIDs(ids ...int) {
+	if m.removedaudio_tracks == nil {
+		m.removedaudio_tracks = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.audio_tracks, ids[i])
+		m.removedaudio_tracks[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedAudioTracks returns the removed IDs of the "audio_tracks" edge to the AudioTrack entity.
+func (m *PlaySessionMediaMutation) RemovedAudioTracksIDs() (ids []int) {
+	for id := range m.removedaudio_tracks {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// AudioTracksIDs returns the "audio_tracks" edge IDs in the mutation.
+func (m *PlaySessionMediaMutation) AudioTracksIDs() (ids []int) {
+	for id := range m.audio_tracks {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetAudioTracks resets all changes to the "audio_tracks" edge.
+func (m *PlaySessionMediaMutation) ResetAudioTracks() {
+	m.audio_tracks = nil
+	m.clearedaudio_tracks = false
+	m.removedaudio_tracks = nil
+}
+
+// SetVideoID sets the "video" edge to the Video entity by id.
+func (m *PlaySessionMediaMutation) SetVideoID(id int) {
+	m.video = &id
+}
+
+// ClearVideo clears the "video" edge to the Video entity.
+func (m *PlaySessionMediaMutation) ClearVideo() {
+	m.clearedvideo = true
+}
+
+// VideoCleared reports if the "video" edge to the Video entity was cleared.
+func (m *PlaySessionMediaMutation) VideoCleared() bool {
+	return m.clearedvideo
+}
+
+// VideoID returns the "video" edge ID in the mutation.
+func (m *PlaySessionMediaMutation) VideoID() (id int, exists bool) {
+	if m.video != nil {
+		return *m.video, true
+	}
+	return
+}
+
+// VideoIDs returns the "video" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// VideoID instead. It exists only for internal usage by the builders.
+func (m *PlaySessionMediaMutation) VideoIDs() (ids []int) {
+	if id := m.video; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetVideo resets all changes to the "video" edge.
+func (m *PlaySessionMediaMutation) ResetVideo() {
+	m.video = nil
+	m.clearedvideo = false
+}
+
+// SetSessionID sets the "session" edge to the PlaySession entity by id.
+func (m *PlaySessionMediaMutation) SetSessionID(id int) {
+	m.session = &id
+}
+
+// ClearSession clears the "session" edge to the PlaySession entity.
+func (m *PlaySessionMediaMutation) ClearSession() {
+	m.clearedsession = true
+}
+
+// SessionCleared reports if the "session" edge to the PlaySession entity was cleared.
+func (m *PlaySessionMediaMutation) SessionCleared() bool {
+	return m.clearedsession
+}
+
+// SessionID returns the "session" edge ID in the mutation.
+func (m *PlaySessionMediaMutation) SessionID() (id int, exists bool) {
+	if m.session != nil {
+		return *m.session, true
+	}
+	return
+}
+
+// SessionIDs returns the "session" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// SessionID instead. It exists only for internal usage by the builders.
+func (m *PlaySessionMediaMutation) SessionIDs() (ids []int) {
+	if id := m.session; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetSession resets all changes to the "session" edge.
+func (m *PlaySessionMediaMutation) ResetSession() {
+	m.session = nil
+	m.clearedsession = false
+}
+
+// Where appends a list predicates to the PlaySessionMediaMutation builder.
+func (m *PlaySessionMediaMutation) Where(ps ...predicate.PlaySessionMedia) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the PlaySessionMediaMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *PlaySessionMediaMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.PlaySessionMedia, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *PlaySessionMediaMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *PlaySessionMediaMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (PlaySessionMedia).
+func (m *PlaySessionMediaMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *PlaySessionMediaMutation) Fields() []string {
+	fields := make([]string, 0, 2)
+	if m.video_codecs != nil {
+		fields = append(fields, playsessionmedia.FieldVideoCodecs)
+	}
+	if m.resolutions != nil {
+		fields = append(fields, playsessionmedia.FieldResolutions)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *PlaySessionMediaMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case playsessionmedia.FieldVideoCodecs:
+		return m.VideoCodecs()
+	case playsessionmedia.FieldResolutions:
+		return m.Resolutions()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *PlaySessionMediaMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case playsessionmedia.FieldVideoCodecs:
+		return m.OldVideoCodecs(ctx)
+	case playsessionmedia.FieldResolutions:
+		return m.OldResolutions(ctx)
+	}
+	return nil, fmt.Errorf("unknown PlaySessionMedia field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PlaySessionMediaMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case playsessionmedia.FieldVideoCodecs:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVideoCodecs(v)
+		return nil
+	case playsessionmedia.FieldResolutions:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResolutions(v)
+		return nil
+	}
+	return fmt.Errorf("unknown PlaySessionMedia field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *PlaySessionMediaMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *PlaySessionMediaMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PlaySessionMediaMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown PlaySessionMedia numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *PlaySessionMediaMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *PlaySessionMediaMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *PlaySessionMediaMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown PlaySessionMedia nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *PlaySessionMediaMutation) ResetField(name string) error {
+	switch name {
+	case playsessionmedia.FieldVideoCodecs:
+		m.ResetVideoCodecs()
+		return nil
+	case playsessionmedia.FieldResolutions:
+		m.ResetResolutions()
+		return nil
+	}
+	return fmt.Errorf("unknown PlaySessionMedia field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *PlaySessionMediaMutation) AddedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.audio_tracks != nil {
+		edges = append(edges, playsessionmedia.EdgeAudioTracks)
+	}
+	if m.video != nil {
+		edges = append(edges, playsessionmedia.EdgeVideo)
+	}
+	if m.session != nil {
+		edges = append(edges, playsessionmedia.EdgeSession)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *PlaySessionMediaMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case playsessionmedia.EdgeAudioTracks:
+		ids := make([]ent.Value, 0, len(m.audio_tracks))
+		for id := range m.audio_tracks {
+			ids = append(ids, id)
+		}
+		return ids
+	case playsessionmedia.EdgeVideo:
+		if id := m.video; id != nil {
+			return []ent.Value{*id}
+		}
+	case playsessionmedia.EdgeSession:
+		if id := m.session; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *PlaySessionMediaMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.removedaudio_tracks != nil {
+		edges = append(edges, playsessionmedia.EdgeAudioTracks)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *PlaySessionMediaMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case playsessionmedia.EdgeAudioTracks:
+		ids := make([]ent.Value, 0, len(m.removedaudio_tracks))
+		for id := range m.removedaudio_tracks {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *PlaySessionMediaMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.clearedaudio_tracks {
+		edges = append(edges, playsessionmedia.EdgeAudioTracks)
+	}
+	if m.clearedvideo {
+		edges = append(edges, playsessionmedia.EdgeVideo)
+	}
+	if m.clearedsession {
+		edges = append(edges, playsessionmedia.EdgeSession)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *PlaySessionMediaMutation) EdgeCleared(name string) bool {
+	switch name {
+	case playsessionmedia.EdgeAudioTracks:
+		return m.clearedaudio_tracks
+	case playsessionmedia.EdgeVideo:
+		return m.clearedvideo
+	case playsessionmedia.EdgeSession:
+		return m.clearedsession
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *PlaySessionMediaMutation) ClearEdge(name string) error {
+	switch name {
+	case playsessionmedia.EdgeVideo:
+		m.ClearVideo()
+		return nil
+	case playsessionmedia.EdgeSession:
+		m.ClearSession()
+		return nil
+	}
+	return fmt.Errorf("unknown PlaySessionMedia unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *PlaySessionMediaMutation) ResetEdge(name string) error {
+	switch name {
+	case playsessionmedia.EdgeAudioTracks:
+		m.ResetAudioTracks()
+		return nil
+	case playsessionmedia.EdgeVideo:
+		m.ResetVideo()
+		return nil
+	case playsessionmedia.EdgeSession:
+		m.ResetSession()
+		return nil
+	}
+	return fmt.Errorf("unknown PlaySessionMedia edge %s", name)
+}
+
+// PlaybackClientMutation represents an operation that mutates the PlaybackClient nodes in the graph.
+type PlaybackClientMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int
+	is_buffered    *bool
+	clearedFields  map[string]struct{}
+	session        *int
+	clearedsession bool
+	done           bool
+	oldValue       func(context.Context) (*PlaybackClient, error)
+	predicates     []predicate.PlaybackClient
+}
+
+var _ ent.Mutation = (*PlaybackClientMutation)(nil)
+
+// playbackclientOption allows management of the mutation configuration using functional options.
+type playbackclientOption func(*PlaybackClientMutation)
+
+// newPlaybackClientMutation creates new mutation for the PlaybackClient entity.
+func newPlaybackClientMutation(c config, op Op, opts ...playbackclientOption) *PlaybackClientMutation {
+	m := &PlaybackClientMutation{
+		config:        c,
+		op:            op,
+		typ:           TypePlaybackClient,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withPlaybackClientID sets the ID field of the mutation.
+func withPlaybackClientID(id int) playbackclientOption {
+	return func(m *PlaybackClientMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *PlaybackClient
+		)
+		m.oldValue = func(ctx context.Context) (*PlaybackClient, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().PlaybackClient.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withPlaybackClient sets the old PlaybackClient of the mutation.
+func withPlaybackClient(node *PlaybackClient) playbackclientOption {
+	return func(m *PlaybackClientMutation) {
+		m.oldValue = func(context.Context) (*PlaybackClient, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m PlaybackClientMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m PlaybackClientMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *PlaybackClientMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *PlaybackClientMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().PlaybackClient.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetIsBuffered sets the "is_buffered" field.
+func (m *PlaybackClientMutation) SetIsBuffered(b bool) {
+	m.is_buffered = &b
+}
+
+// IsBuffered returns the value of the "is_buffered" field in the mutation.
+func (m *PlaybackClientMutation) IsBuffered() (r bool, exists bool) {
+	v := m.is_buffered
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIsBuffered returns the old "is_buffered" field's value of the PlaybackClient entity.
+// If the PlaybackClient object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PlaybackClientMutation) OldIsBuffered(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIsBuffered is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIsBuffered requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIsBuffered: %w", err)
+	}
+	return oldValue.IsBuffered, nil
+}
+
+// ResetIsBuffered resets all changes to the "is_buffered" field.
+func (m *PlaybackClientMutation) ResetIsBuffered() {
+	m.is_buffered = nil
+}
+
+// SetSessionID sets the "session" edge to the PlaySession entity by id.
+func (m *PlaybackClientMutation) SetSessionID(id int) {
+	m.session = &id
+}
+
+// ClearSession clears the "session" edge to the PlaySession entity.
+func (m *PlaybackClientMutation) ClearSession() {
+	m.clearedsession = true
+}
+
+// SessionCleared reports if the "session" edge to the PlaySession entity was cleared.
+func (m *PlaybackClientMutation) SessionCleared() bool {
+	return m.clearedsession
+}
+
+// SessionID returns the "session" edge ID in the mutation.
+func (m *PlaybackClientMutation) SessionID() (id int, exists bool) {
+	if m.session != nil {
+		return *m.session, true
+	}
+	return
+}
+
+// SessionIDs returns the "session" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// SessionID instead. It exists only for internal usage by the builders.
+func (m *PlaybackClientMutation) SessionIDs() (ids []int) {
+	if id := m.session; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetSession resets all changes to the "session" edge.
+func (m *PlaybackClientMutation) ResetSession() {
+	m.session = nil
+	m.clearedsession = false
+}
+
+// Where appends a list predicates to the PlaybackClientMutation builder.
+func (m *PlaybackClientMutation) Where(ps ...predicate.PlaybackClient) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the PlaybackClientMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *PlaybackClientMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.PlaybackClient, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *PlaybackClientMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *PlaybackClientMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (PlaybackClient).
+func (m *PlaybackClientMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *PlaybackClientMutation) Fields() []string {
+	fields := make([]string, 0, 1)
+	if m.is_buffered != nil {
+		fields = append(fields, playbackclient.FieldIsBuffered)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *PlaybackClientMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case playbackclient.FieldIsBuffered:
+		return m.IsBuffered()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *PlaybackClientMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case playbackclient.FieldIsBuffered:
+		return m.OldIsBuffered(ctx)
+	}
+	return nil, fmt.Errorf("unknown PlaybackClient field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PlaybackClientMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case playbackclient.FieldIsBuffered:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIsBuffered(v)
+		return nil
+	}
+	return fmt.Errorf("unknown PlaybackClient field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *PlaybackClientMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *PlaybackClientMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PlaybackClientMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown PlaybackClient numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *PlaybackClientMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *PlaybackClientMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *PlaybackClientMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown PlaybackClient nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *PlaybackClientMutation) ResetField(name string) error {
+	switch name {
+	case playbackclient.FieldIsBuffered:
+		m.ResetIsBuffered()
+		return nil
+	}
+	return fmt.Errorf("unknown PlaybackClient field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *PlaybackClientMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.session != nil {
+		edges = append(edges, playbackclient.EdgeSession)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *PlaybackClientMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case playbackclient.EdgeSession:
+		if id := m.session; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *PlaybackClientMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *PlaybackClientMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *PlaybackClientMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedsession {
+		edges = append(edges, playbackclient.EdgeSession)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *PlaybackClientMutation) EdgeCleared(name string) bool {
+	switch name {
+	case playbackclient.EdgeSession:
+		return m.clearedsession
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *PlaybackClientMutation) ClearEdge(name string) error {
+	switch name {
+	case playbackclient.EdgeSession:
+		m.ClearSession()
+		return nil
+	}
+	return fmt.Errorf("unknown PlaybackClient unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *PlaybackClientMutation) ResetEdge(name string) error {
+	switch name {
+	case playbackclient.EdgeSession:
+		m.ResetSession()
+		return nil
+	}
+	return fmt.Errorf("unknown PlaybackClient edge %s", name)
+}
+
+// StreamMutation represents an operation that mutates the Stream nodes in the graph.
+type StreamMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *int
+	width               *int
+	addwidth            *int
+	height              *int
+	addheight           *int
+	container           *string
+	video_codec         *string
+	audio_codec         *string
+	segment_duration    *int
+	addsegment_duration *int
+	quality             *stream.Quality
+	_type               *stream.Type
+	clearedFields       map[string]struct{}
+	done                bool
+	oldValue            func(context.Context) (*Stream, error)
+	predicates          []predicate.Stream
+}
+
+var _ ent.Mutation = (*StreamMutation)(nil)
+
+// streamOption allows management of the mutation configuration using functional options.
+type streamOption func(*StreamMutation)
+
+// newStreamMutation creates new mutation for the Stream entity.
+func newStreamMutation(c config, op Op, opts ...streamOption) *StreamMutation {
+	m := &StreamMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeStream,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withStreamID sets the ID field of the mutation.
+func withStreamID(id int) streamOption {
+	return func(m *StreamMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Stream
+		)
+		m.oldValue = func(ctx context.Context) (*Stream, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Stream.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withStream sets the old Stream of the mutation.
+func withStream(node *Stream) streamOption {
+	return func(m *StreamMutation) {
+		m.oldValue = func(context.Context) (*Stream, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m StreamMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m StreamMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *StreamMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *StreamMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Stream.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetWidth sets the "width" field.
+func (m *StreamMutation) SetWidth(i int) {
+	m.width = &i
+	m.addwidth = nil
+}
+
+// Width returns the value of the "width" field in the mutation.
+func (m *StreamMutation) Width() (r int, exists bool) {
+	v := m.width
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWidth returns the old "width" field's value of the Stream entity.
+// If the Stream object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StreamMutation) OldWidth(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWidth is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWidth requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWidth: %w", err)
+	}
+	return oldValue.Width, nil
+}
+
+// AddWidth adds i to the "width" field.
+func (m *StreamMutation) AddWidth(i int) {
+	if m.addwidth != nil {
+		*m.addwidth += i
+	} else {
+		m.addwidth = &i
+	}
+}
+
+// AddedWidth returns the value that was added to the "width" field in this mutation.
+func (m *StreamMutation) AddedWidth() (r int, exists bool) {
+	v := m.addwidth
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetWidth resets all changes to the "width" field.
+func (m *StreamMutation) ResetWidth() {
+	m.width = nil
+	m.addwidth = nil
+}
+
+// SetHeight sets the "height" field.
+func (m *StreamMutation) SetHeight(i int) {
+	m.height = &i
+	m.addheight = nil
+}
+
+// Height returns the value of the "height" field in the mutation.
+func (m *StreamMutation) Height() (r int, exists bool) {
+	v := m.height
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHeight returns the old "height" field's value of the Stream entity.
+// If the Stream object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StreamMutation) OldHeight(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHeight is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHeight requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHeight: %w", err)
+	}
+	return oldValue.Height, nil
+}
+
+// AddHeight adds i to the "height" field.
+func (m *StreamMutation) AddHeight(i int) {
+	if m.addheight != nil {
+		*m.addheight += i
+	} else {
+		m.addheight = &i
+	}
+}
+
+// AddedHeight returns the value that was added to the "height" field in this mutation.
+func (m *StreamMutation) AddedHeight() (r int, exists bool) {
+	v := m.addheight
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetHeight resets all changes to the "height" field.
+func (m *StreamMutation) ResetHeight() {
+	m.height = nil
+	m.addheight = nil
+}
+
+// SetContainer sets the "container" field.
+func (m *StreamMutation) SetContainer(s string) {
+	m.container = &s
+}
+
+// Container returns the value of the "container" field in the mutation.
+func (m *StreamMutation) Container() (r string, exists bool) {
+	v := m.container
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldContainer returns the old "container" field's value of the Stream entity.
+// If the Stream object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StreamMutation) OldContainer(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldContainer is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldContainer requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldContainer: %w", err)
+	}
+	return oldValue.Container, nil
+}
+
+// ResetContainer resets all changes to the "container" field.
+func (m *StreamMutation) ResetContainer() {
+	m.container = nil
+}
+
+// SetVideoCodec sets the "video_codec" field.
+func (m *StreamMutation) SetVideoCodec(s string) {
+	m.video_codec = &s
+}
+
+// VideoCodec returns the value of the "video_codec" field in the mutation.
+func (m *StreamMutation) VideoCodec() (r string, exists bool) {
+	v := m.video_codec
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVideoCodec returns the old "video_codec" field's value of the Stream entity.
+// If the Stream object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StreamMutation) OldVideoCodec(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVideoCodec is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVideoCodec requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVideoCodec: %w", err)
+	}
+	return oldValue.VideoCodec, nil
+}
+
+// ResetVideoCodec resets all changes to the "video_codec" field.
+func (m *StreamMutation) ResetVideoCodec() {
+	m.video_codec = nil
+}
+
+// SetAudioCodec sets the "audio_codec" field.
+func (m *StreamMutation) SetAudioCodec(s string) {
+	m.audio_codec = &s
+}
+
+// AudioCodec returns the value of the "audio_codec" field in the mutation.
+func (m *StreamMutation) AudioCodec() (r string, exists bool) {
+	v := m.audio_codec
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAudioCodec returns the old "audio_codec" field's value of the Stream entity.
+// If the Stream object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StreamMutation) OldAudioCodec(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAudioCodec is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAudioCodec requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAudioCodec: %w", err)
+	}
+	return oldValue.AudioCodec, nil
+}
+
+// ResetAudioCodec resets all changes to the "audio_codec" field.
+func (m *StreamMutation) ResetAudioCodec() {
+	m.audio_codec = nil
+}
+
+// SetSegmentDuration sets the "segment_duration" field.
+func (m *StreamMutation) SetSegmentDuration(i int) {
+	m.segment_duration = &i
+	m.addsegment_duration = nil
+}
+
+// SegmentDuration returns the value of the "segment_duration" field in the mutation.
+func (m *StreamMutation) SegmentDuration() (r int, exists bool) {
+	v := m.segment_duration
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSegmentDuration returns the old "segment_duration" field's value of the Stream entity.
+// If the Stream object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StreamMutation) OldSegmentDuration(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSegmentDuration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSegmentDuration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSegmentDuration: %w", err)
+	}
+	return oldValue.SegmentDuration, nil
+}
+
+// AddSegmentDuration adds i to the "segment_duration" field.
+func (m *StreamMutation) AddSegmentDuration(i int) {
+	if m.addsegment_duration != nil {
+		*m.addsegment_duration += i
+	} else {
+		m.addsegment_duration = &i
+	}
+}
+
+// AddedSegmentDuration returns the value that was added to the "segment_duration" field in this mutation.
+func (m *StreamMutation) AddedSegmentDuration() (r int, exists bool) {
+	v := m.addsegment_duration
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSegmentDuration resets all changes to the "segment_duration" field.
+func (m *StreamMutation) ResetSegmentDuration() {
+	m.segment_duration = nil
+	m.addsegment_duration = nil
+}
+
+// SetQuality sets the "quality" field.
+func (m *StreamMutation) SetQuality(s stream.Quality) {
+	m.quality = &s
+}
+
+// Quality returns the value of the "quality" field in the mutation.
+func (m *StreamMutation) Quality() (r stream.Quality, exists bool) {
+	v := m.quality
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuality returns the old "quality" field's value of the Stream entity.
+// If the Stream object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StreamMutation) OldQuality(ctx context.Context) (v stream.Quality, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuality is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuality requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuality: %w", err)
+	}
+	return oldValue.Quality, nil
+}
+
+// ResetQuality resets all changes to the "quality" field.
+func (m *StreamMutation) ResetQuality() {
+	m.quality = nil
+}
+
+// SetType sets the "type" field.
+func (m *StreamMutation) SetType(s stream.Type) {
+	m._type = &s
+}
+
+// GetType returns the value of the "type" field in the mutation.
+func (m *StreamMutation) GetType() (r stream.Type, exists bool) {
+	v := m._type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldType returns the old "type" field's value of the Stream entity.
+// If the Stream object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StreamMutation) OldType(ctx context.Context) (v stream.Type, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldType: %w", err)
+	}
+	return oldValue.Type, nil
+}
+
+// ResetType resets all changes to the "type" field.
+func (m *StreamMutation) ResetType() {
+	m._type = nil
+}
+
+// Where appends a list predicates to the StreamMutation builder.
+func (m *StreamMutation) Where(ps ...predicate.Stream) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the StreamMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *StreamMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Stream, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *StreamMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *StreamMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Stream).
+func (m *StreamMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *StreamMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.width != nil {
+		fields = append(fields, stream.FieldWidth)
+	}
+	if m.height != nil {
+		fields = append(fields, stream.FieldHeight)
+	}
+	if m.container != nil {
+		fields = append(fields, stream.FieldContainer)
+	}
+	if m.video_codec != nil {
+		fields = append(fields, stream.FieldVideoCodec)
+	}
+	if m.audio_codec != nil {
+		fields = append(fields, stream.FieldAudioCodec)
+	}
+	if m.segment_duration != nil {
+		fields = append(fields, stream.FieldSegmentDuration)
+	}
+	if m.quality != nil {
+		fields = append(fields, stream.FieldQuality)
+	}
+	if m._type != nil {
+		fields = append(fields, stream.FieldType)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *StreamMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case stream.FieldWidth:
+		return m.Width()
+	case stream.FieldHeight:
+		return m.Height()
+	case stream.FieldContainer:
+		return m.Container()
+	case stream.FieldVideoCodec:
+		return m.VideoCodec()
+	case stream.FieldAudioCodec:
+		return m.AudioCodec()
+	case stream.FieldSegmentDuration:
+		return m.SegmentDuration()
+	case stream.FieldQuality:
+		return m.Quality()
+	case stream.FieldType:
+		return m.GetType()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *StreamMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case stream.FieldWidth:
+		return m.OldWidth(ctx)
+	case stream.FieldHeight:
+		return m.OldHeight(ctx)
+	case stream.FieldContainer:
+		return m.OldContainer(ctx)
+	case stream.FieldVideoCodec:
+		return m.OldVideoCodec(ctx)
+	case stream.FieldAudioCodec:
+		return m.OldAudioCodec(ctx)
+	case stream.FieldSegmentDuration:
+		return m.OldSegmentDuration(ctx)
+	case stream.FieldQuality:
+		return m.OldQuality(ctx)
+	case stream.FieldType:
+		return m.OldType(ctx)
+	}
+	return nil, fmt.Errorf("unknown Stream field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *StreamMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case stream.FieldWidth:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWidth(v)
+		return nil
+	case stream.FieldHeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHeight(v)
+		return nil
+	case stream.FieldContainer:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetContainer(v)
+		return nil
+	case stream.FieldVideoCodec:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVideoCodec(v)
+		return nil
+	case stream.FieldAudioCodec:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAudioCodec(v)
+		return nil
+	case stream.FieldSegmentDuration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSegmentDuration(v)
+		return nil
+	case stream.FieldQuality:
+		v, ok := value.(stream.Quality)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuality(v)
+		return nil
+	case stream.FieldType:
+		v, ok := value.(stream.Type)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetType(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Stream field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *StreamMutation) AddedFields() []string {
+	var fields []string
+	if m.addwidth != nil {
+		fields = append(fields, stream.FieldWidth)
+	}
+	if m.addheight != nil {
+		fields = append(fields, stream.FieldHeight)
+	}
+	if m.addsegment_duration != nil {
+		fields = append(fields, stream.FieldSegmentDuration)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *StreamMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case stream.FieldWidth:
+		return m.AddedWidth()
+	case stream.FieldHeight:
+		return m.AddedHeight()
+	case stream.FieldSegmentDuration:
+		return m.AddedSegmentDuration()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *StreamMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case stream.FieldWidth:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddWidth(v)
+		return nil
+	case stream.FieldHeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddHeight(v)
+		return nil
+	case stream.FieldSegmentDuration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSegmentDuration(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Stream numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *StreamMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *StreamMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *StreamMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Stream nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *StreamMutation) ResetField(name string) error {
+	switch name {
+	case stream.FieldWidth:
+		m.ResetWidth()
+		return nil
+	case stream.FieldHeight:
+		m.ResetHeight()
+		return nil
+	case stream.FieldContainer:
+		m.ResetContainer()
+		return nil
+	case stream.FieldVideoCodec:
+		m.ResetVideoCodec()
+		return nil
+	case stream.FieldAudioCodec:
+		m.ResetAudioCodec()
+		return nil
+	case stream.FieldSegmentDuration:
+		m.ResetSegmentDuration()
+		return nil
+	case stream.FieldQuality:
+		m.ResetQuality()
+		return nil
+	case stream.FieldType:
+		m.ResetType()
+		return nil
+	}
+	return fmt.Errorf("unknown Stream field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *StreamMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *StreamMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *StreamMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *StreamMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *StreamMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *StreamMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *StreamMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown Stream unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *StreamMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown Stream edge %s", name)
+}
+
 // VideoMutation represents an operation that mutates the Video nodes in the graph.
 type VideoMutation struct {
 	config
-	op                   Op
-	typ                  string
-	id                   *int
-	_path                *string
-	created_at           *time.Time
-	clearedFields        map[string]struct{}
-	library              *int
-	clearedlibrary       bool
-	play_sessions        map[int]struct{}
-	removedplay_sessions map[int]struct{}
-	clearedplay_sessions bool
-	done                 bool
-	oldValue             func(context.Context) (*Video, error)
-	predicates           []predicate.Video
+	op                         Op
+	typ                        string
+	id                         *int
+	_path                      *string
+	created_at                 *time.Time
+	clearedFields              map[string]struct{}
+	play_session_medias        map[int]struct{}
+	removedplay_session_medias map[int]struct{}
+	clearedplay_session_medias bool
+	library                    *int
+	clearedlibrary             bool
+	done                       bool
+	oldValue                   func(context.Context) (*Video, error)
+	predicates                 []predicate.Video
 }
 
 var _ ent.Mutation = (*VideoMutation)(nil)
@@ -1024,6 +3797,60 @@ func (m *VideoMutation) ResetCreatedAt() {
 	m.created_at = nil
 }
 
+// AddPlaySessionMediaIDs adds the "play_session_medias" edge to the PlaySessionMedia entity by ids.
+func (m *VideoMutation) AddPlaySessionMediaIDs(ids ...int) {
+	if m.play_session_medias == nil {
+		m.play_session_medias = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.play_session_medias[ids[i]] = struct{}{}
+	}
+}
+
+// ClearPlaySessionMedias clears the "play_session_medias" edge to the PlaySessionMedia entity.
+func (m *VideoMutation) ClearPlaySessionMedias() {
+	m.clearedplay_session_medias = true
+}
+
+// PlaySessionMediasCleared reports if the "play_session_medias" edge to the PlaySessionMedia entity was cleared.
+func (m *VideoMutation) PlaySessionMediasCleared() bool {
+	return m.clearedplay_session_medias
+}
+
+// RemovePlaySessionMediaIDs removes the "play_session_medias" edge to the PlaySessionMedia entity by IDs.
+func (m *VideoMutation) RemovePlaySessionMediaIDs(ids ...int) {
+	if m.removedplay_session_medias == nil {
+		m.removedplay_session_medias = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.play_session_medias, ids[i])
+		m.removedplay_session_medias[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedPlaySessionMedias returns the removed IDs of the "play_session_medias" edge to the PlaySessionMedia entity.
+func (m *VideoMutation) RemovedPlaySessionMediasIDs() (ids []int) {
+	for id := range m.removedplay_session_medias {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// PlaySessionMediasIDs returns the "play_session_medias" edge IDs in the mutation.
+func (m *VideoMutation) PlaySessionMediasIDs() (ids []int) {
+	for id := range m.play_session_medias {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetPlaySessionMedias resets all changes to the "play_session_medias" edge.
+func (m *VideoMutation) ResetPlaySessionMedias() {
+	m.play_session_medias = nil
+	m.clearedplay_session_medias = false
+	m.removedplay_session_medias = nil
+}
+
 // SetLibraryID sets the "library" edge to the Library entity by id.
 func (m *VideoMutation) SetLibraryID(id int) {
 	m.library = &id
@@ -1061,60 +3888,6 @@ func (m *VideoMutation) LibraryIDs() (ids []int) {
 func (m *VideoMutation) ResetLibrary() {
 	m.library = nil
 	m.clearedlibrary = false
-}
-
-// AddPlaySessionIDs adds the "play_sessions" edge to the PlaySession entity by ids.
-func (m *VideoMutation) AddPlaySessionIDs(ids ...int) {
-	if m.play_sessions == nil {
-		m.play_sessions = make(map[int]struct{})
-	}
-	for i := range ids {
-		m.play_sessions[ids[i]] = struct{}{}
-	}
-}
-
-// ClearPlaySessions clears the "play_sessions" edge to the PlaySession entity.
-func (m *VideoMutation) ClearPlaySessions() {
-	m.clearedplay_sessions = true
-}
-
-// PlaySessionsCleared reports if the "play_sessions" edge to the PlaySession entity was cleared.
-func (m *VideoMutation) PlaySessionsCleared() bool {
-	return m.clearedplay_sessions
-}
-
-// RemovePlaySessionIDs removes the "play_sessions" edge to the PlaySession entity by IDs.
-func (m *VideoMutation) RemovePlaySessionIDs(ids ...int) {
-	if m.removedplay_sessions == nil {
-		m.removedplay_sessions = make(map[int]struct{})
-	}
-	for i := range ids {
-		delete(m.play_sessions, ids[i])
-		m.removedplay_sessions[ids[i]] = struct{}{}
-	}
-}
-
-// RemovedPlaySessions returns the removed IDs of the "play_sessions" edge to the PlaySession entity.
-func (m *VideoMutation) RemovedPlaySessionsIDs() (ids []int) {
-	for id := range m.removedplay_sessions {
-		ids = append(ids, id)
-	}
-	return
-}
-
-// PlaySessionsIDs returns the "play_sessions" edge IDs in the mutation.
-func (m *VideoMutation) PlaySessionsIDs() (ids []int) {
-	for id := range m.play_sessions {
-		ids = append(ids, id)
-	}
-	return
-}
-
-// ResetPlaySessions resets all changes to the "play_sessions" edge.
-func (m *VideoMutation) ResetPlaySessions() {
-	m.play_sessions = nil
-	m.clearedplay_sessions = false
-	m.removedplay_sessions = nil
 }
 
 // Where appends a list predicates to the VideoMutation builder.
@@ -1268,11 +4041,11 @@ func (m *VideoMutation) ResetField(name string) error {
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *VideoMutation) AddedEdges() []string {
 	edges := make([]string, 0, 2)
+	if m.play_session_medias != nil {
+		edges = append(edges, video.EdgePlaySessionMedias)
+	}
 	if m.library != nil {
 		edges = append(edges, video.EdgeLibrary)
-	}
-	if m.play_sessions != nil {
-		edges = append(edges, video.EdgePlaySessions)
 	}
 	return edges
 }
@@ -1281,16 +4054,16 @@ func (m *VideoMutation) AddedEdges() []string {
 // name in this mutation.
 func (m *VideoMutation) AddedIDs(name string) []ent.Value {
 	switch name {
+	case video.EdgePlaySessionMedias:
+		ids := make([]ent.Value, 0, len(m.play_session_medias))
+		for id := range m.play_session_medias {
+			ids = append(ids, id)
+		}
+		return ids
 	case video.EdgeLibrary:
 		if id := m.library; id != nil {
 			return []ent.Value{*id}
 		}
-	case video.EdgePlaySessions:
-		ids := make([]ent.Value, 0, len(m.play_sessions))
-		for id := range m.play_sessions {
-			ids = append(ids, id)
-		}
-		return ids
 	}
 	return nil
 }
@@ -1298,8 +4071,8 @@ func (m *VideoMutation) AddedIDs(name string) []ent.Value {
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *VideoMutation) RemovedEdges() []string {
 	edges := make([]string, 0, 2)
-	if m.removedplay_sessions != nil {
-		edges = append(edges, video.EdgePlaySessions)
+	if m.removedplay_session_medias != nil {
+		edges = append(edges, video.EdgePlaySessionMedias)
 	}
 	return edges
 }
@@ -1308,9 +4081,9 @@ func (m *VideoMutation) RemovedEdges() []string {
 // the given name in this mutation.
 func (m *VideoMutation) RemovedIDs(name string) []ent.Value {
 	switch name {
-	case video.EdgePlaySessions:
-		ids := make([]ent.Value, 0, len(m.removedplay_sessions))
-		for id := range m.removedplay_sessions {
+	case video.EdgePlaySessionMedias:
+		ids := make([]ent.Value, 0, len(m.removedplay_session_medias))
+		for id := range m.removedplay_session_medias {
 			ids = append(ids, id)
 		}
 		return ids
@@ -1321,11 +4094,11 @@ func (m *VideoMutation) RemovedIDs(name string) []ent.Value {
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *VideoMutation) ClearedEdges() []string {
 	edges := make([]string, 0, 2)
+	if m.clearedplay_session_medias {
+		edges = append(edges, video.EdgePlaySessionMedias)
+	}
 	if m.clearedlibrary {
 		edges = append(edges, video.EdgeLibrary)
-	}
-	if m.clearedplay_sessions {
-		edges = append(edges, video.EdgePlaySessions)
 	}
 	return edges
 }
@@ -1334,10 +4107,10 @@ func (m *VideoMutation) ClearedEdges() []string {
 // was cleared in this mutation.
 func (m *VideoMutation) EdgeCleared(name string) bool {
 	switch name {
+	case video.EdgePlaySessionMedias:
+		return m.clearedplay_session_medias
 	case video.EdgeLibrary:
 		return m.clearedlibrary
-	case video.EdgePlaySessions:
-		return m.clearedplay_sessions
 	}
 	return false
 }
@@ -1357,11 +4130,11 @@ func (m *VideoMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *VideoMutation) ResetEdge(name string) error {
 	switch name {
+	case video.EdgePlaySessionMedias:
+		m.ResetPlaySessionMedias()
+		return nil
 	case video.EdgeLibrary:
 		m.ResetLibrary()
-		return nil
-	case video.EdgePlaySessions:
-		m.ResetPlaySessions()
 		return nil
 	}
 	return fmt.Errorf("unknown Video edge %s", name)

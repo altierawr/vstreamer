@@ -8,6 +8,30 @@ import (
 )
 
 var (
+	// AudioTracksColumns holds the columns for the "audio_tracks" table.
+	AudioTracksColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString},
+		{Name: "nr_channels", Type: field.TypeInt},
+		{Name: "channel_layout", Type: field.TypeString},
+		{Name: "language", Type: field.TypeString, Nullable: true},
+		{Name: "codecs", Type: field.TypeJSON},
+		{Name: "play_session_media_audio_tracks", Type: field.TypeInt},
+	}
+	// AudioTracksTable holds the schema information for the "audio_tracks" table.
+	AudioTracksTable = &schema.Table{
+		Name:       "audio_tracks",
+		Columns:    AudioTracksColumns,
+		PrimaryKey: []*schema.Column{AudioTracksColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "audio_tracks_play_session_media_audio_tracks",
+				Columns:    []*schema.Column{AudioTracksColumns[6]},
+				RefColumns: []*schema.Column{PlaySessionMediaColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+	}
 	// LibrariesColumns holds the columns for the "libraries" table.
 	LibrariesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -23,21 +47,80 @@ var (
 	// PlaySessionsColumns holds the columns for the "play_sessions" table.
 	PlaySessionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "video_play_sessions", Type: field.TypeInt, Nullable: true},
+		{Name: "current_time", Type: field.TypeInt, Nullable: true},
+		{Name: "state", Type: field.TypeEnum, Enums: []string{"PLAYING", "PAUSED", "BUFFERING", "STOPPED"}, Default: "STOPPED"},
 	}
 	// PlaySessionsTable holds the schema information for the "play_sessions" table.
 	PlaySessionsTable = &schema.Table{
 		Name:       "play_sessions",
 		Columns:    PlaySessionsColumns,
 		PrimaryKey: []*schema.Column{PlaySessionsColumns[0]},
+	}
+	// PlaySessionMediaColumns holds the columns for the "play_session_media" table.
+	PlaySessionMediaColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "video_codecs", Type: field.TypeJSON},
+		{Name: "resolutions", Type: field.TypeJSON},
+		{Name: "play_session_media", Type: field.TypeInt, Unique: true},
+		{Name: "video_play_session_medias", Type: field.TypeInt, Nullable: true},
+	}
+	// PlaySessionMediaTable holds the schema information for the "play_session_media" table.
+	PlaySessionMediaTable = &schema.Table{
+		Name:       "play_session_media",
+		Columns:    PlaySessionMediaColumns,
+		PrimaryKey: []*schema.Column{PlaySessionMediaColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "play_sessions_videos_play_sessions",
-				Columns:    []*schema.Column{PlaySessionsColumns[1]},
+				Symbol:     "play_session_media_play_sessions_media",
+				Columns:    []*schema.Column{PlaySessionMediaColumns[3]},
+				RefColumns: []*schema.Column{PlaySessionsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "play_session_media_videos_play_session_medias",
+				Columns:    []*schema.Column{PlaySessionMediaColumns[4]},
 				RefColumns: []*schema.Column{VideosColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 		},
+	}
+	// PlaybackClientsColumns holds the columns for the "playback_clients" table.
+	PlaybackClientsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "is_buffered", Type: field.TypeBool, Default: false},
+		{Name: "play_session_clients", Type: field.TypeInt, Nullable: true},
+	}
+	// PlaybackClientsTable holds the schema information for the "playback_clients" table.
+	PlaybackClientsTable = &schema.Table{
+		Name:       "playback_clients",
+		Columns:    PlaybackClientsColumns,
+		PrimaryKey: []*schema.Column{PlaybackClientsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "playback_clients_play_sessions_clients",
+				Columns:    []*schema.Column{PlaybackClientsColumns[2]},
+				RefColumns: []*schema.Column{PlaySessionsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+	}
+	// StreamsColumns holds the columns for the "streams" table.
+	StreamsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "width", Type: field.TypeInt},
+		{Name: "height", Type: field.TypeInt},
+		{Name: "container", Type: field.TypeString},
+		{Name: "video_codec", Type: field.TypeString},
+		{Name: "audio_codec", Type: field.TypeString},
+		{Name: "segment_duration", Type: field.TypeInt},
+		{Name: "quality", Type: field.TypeEnum, Enums: []string{"maximum", "medium", "low"}},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"direct", "remux", "video_transcode", "audio_transcode", "full_transcode"}},
+	}
+	// StreamsTable holds the schema information for the "streams" table.
+	StreamsTable = &schema.Table{
+		Name:       "streams",
+		Columns:    StreamsColumns,
+		PrimaryKey: []*schema.Column{StreamsColumns[0]},
 	}
 	// VideosColumns holds the columns for the "videos" table.
 	VideosColumns = []*schema.Column{
@@ -62,13 +145,20 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AudioTracksTable,
 		LibrariesTable,
 		PlaySessionsTable,
+		PlaySessionMediaTable,
+		PlaybackClientsTable,
+		StreamsTable,
 		VideosTable,
 	}
 )
 
 func init() {
-	PlaySessionsTable.ForeignKeys[0].RefTable = VideosTable
+	AudioTracksTable.ForeignKeys[0].RefTable = PlaySessionMediaTable
+	PlaySessionMediaTable.ForeignKeys[0].RefTable = PlaySessionsTable
+	PlaySessionMediaTable.ForeignKeys[1].RefTable = VideosTable
+	PlaybackClientsTable.ForeignKeys[0].RefTable = PlaySessionsTable
 	VideosTable.ForeignKeys[0].RefTable = LibrariesTable
 }

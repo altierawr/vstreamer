@@ -14,7 +14,9 @@ import (
 var validExtensions []string = []string{".mkv", ".mp4"}
 
 func ScanLibrary(ctx context.Context, client *ent.Client, id int) {
-	library, err := client.Library.Query().Where(library.ID(id)).Only(ctx)
+	library, err := client.Library.Query().
+		Where(library.ID(id)).
+		Only(ctx)
 	if err != nil {
 		fmt.Printf("error querying library: %v\n", err)
 		return

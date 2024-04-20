@@ -4,12 +4,14 @@ package ent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/playbackclient"
 	"github.com/altierawr/vstreamer/ent/playsession"
-	"github.com/altierawr/vstreamer/ent/video"
+	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 )
 
 // PlaySessionCreate is the builder for creating a PlaySession entity.
@@ -19,23 +21,66 @@ type PlaySessionCreate struct {
 	hooks    []Hook
 }
 
-// SetVideoID sets the "video" edge to the Video entity by ID.
-func (psc *PlaySessionCreate) SetVideoID(id int) *PlaySessionCreate {
-	psc.mutation.SetVideoID(id)
+// SetCurrentTime sets the "current_time" field.
+func (psc *PlaySessionCreate) SetCurrentTime(i int) *PlaySessionCreate {
+	psc.mutation.SetCurrentTime(i)
 	return psc
 }
 
-// SetNillableVideoID sets the "video" edge to the Video entity by ID if the given value is not nil.
-func (psc *PlaySessionCreate) SetNillableVideoID(id *int) *PlaySessionCreate {
-	if id != nil {
-		psc = psc.SetVideoID(*id)
+// SetNillableCurrentTime sets the "current_time" field if the given value is not nil.
+func (psc *PlaySessionCreate) SetNillableCurrentTime(i *int) *PlaySessionCreate {
+	if i != nil {
+		psc.SetCurrentTime(*i)
 	}
 	return psc
 }
 
-// SetVideo sets the "video" edge to the Video entity.
-func (psc *PlaySessionCreate) SetVideo(v *Video) *PlaySessionCreate {
-	return psc.SetVideoID(v.ID)
+// SetState sets the "state" field.
+func (psc *PlaySessionCreate) SetState(pl playsession.State) *PlaySessionCreate {
+	psc.mutation.SetState(pl)
+	return psc
+}
+
+// SetNillableState sets the "state" field if the given value is not nil.
+func (psc *PlaySessionCreate) SetNillableState(pl *playsession.State) *PlaySessionCreate {
+	if pl != nil {
+		psc.SetState(*pl)
+	}
+	return psc
+}
+
+// AddClientIDs adds the "clients" edge to the PlaybackClient entity by IDs.
+func (psc *PlaySessionCreate) AddClientIDs(ids ...int) *PlaySessionCreate {
+	psc.mutation.AddClientIDs(ids...)
+	return psc
+}
+
+// AddClients adds the "clients" edges to the PlaybackClient entity.
+func (psc *PlaySessionCreate) AddClients(p ...*PlaybackClient) *PlaySessionCreate {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return psc.AddClientIDs(ids...)
+}
+
+// SetMediaID sets the "media" edge to the PlaySessionMedia entity by ID.
+func (psc *PlaySessionCreate) SetMediaID(id int) *PlaySessionCreate {
+	psc.mutation.SetMediaID(id)
+	return psc
+}
+
+// SetNillableMediaID sets the "media" edge to the PlaySessionMedia entity by ID if the given value is not nil.
+func (psc *PlaySessionCreate) SetNillableMediaID(id *int) *PlaySessionCreate {
+	if id != nil {
+		psc = psc.SetMediaID(*id)
+	}
+	return psc
+}
+
+// SetMedia sets the "media" edge to the PlaySessionMedia entity.
+func (psc *PlaySessionCreate) SetMedia(p *PlaySessionMedia) *PlaySessionCreate {
+	return psc.SetMediaID(p.ID)
 }
 
 // Mutation returns the PlaySessionMutation object of the builder.
@@ -45,6 +90,7 @@ func (psc *PlaySessionCreate) Mutation() *PlaySessionMutation {
 
 // Save creates the PlaySession in the database.
 func (psc *PlaySessionCreate) Save(ctx context.Context) (*PlaySession, error) {
+	psc.defaults()
 	return withHooks(ctx, psc.sqlSave, psc.mutation, psc.hooks)
 }
 
@@ -70,8 +116,24 @@ func (psc *PlaySessionCreate) ExecX(ctx context.Context) {
 	}
 }
 
+// defaults sets the default values of the builder before save.
+func (psc *PlaySessionCreate) defaults() {
+	if _, ok := psc.mutation.State(); !ok {
+		v := playsession.DefaultState
+		psc.mutation.SetState(v)
+	}
+}
+
 // check runs all checks and user-defined validators on the builder.
 func (psc *PlaySessionCreate) check() error {
+	if _, ok := psc.mutation.State(); !ok {
+		return &ValidationError{Name: "state", err: errors.New(`ent: missing required field "PlaySession.state"`)}
+	}
+	if v, ok := psc.mutation.State(); ok {
+		if err := playsession.StateValidator(v); err != nil {
+			return &ValidationError{Name: "state", err: fmt.Errorf(`ent: validator failed for field "PlaySession.state": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -98,21 +160,44 @@ func (psc *PlaySessionCreate) createSpec() (*PlaySession, *sqlgraph.CreateSpec) 
 		_node = &PlaySession{config: psc.config}
 		_spec = sqlgraph.NewCreateSpec(playsession.Table, sqlgraph.NewFieldSpec(playsession.FieldID, field.TypeInt))
 	)
-	if nodes := psc.mutation.VideoIDs(); len(nodes) > 0 {
+	if value, ok := psc.mutation.CurrentTime(); ok {
+		_spec.SetField(playsession.FieldCurrentTime, field.TypeInt, value)
+		_node.CurrentTime = value
+	}
+	if value, ok := psc.mutation.State(); ok {
+		_spec.SetField(playsession.FieldState, field.TypeEnum, value)
+		_node.State = value
+	}
+	if nodes := psc.mutation.ClientsIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
-			Inverse: true,
-			Table:   playsession.VideoTable,
-			Columns: []string{playsession.VideoColumn},
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsession.ClientsTable,
+			Columns: []string{playsession.ClientsColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(video.FieldID, field.TypeInt),
+				IDSpec: sqlgraph.NewFieldSpec(playbackclient.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
-		_node.video_play_sessions = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := psc.mutation.MediaIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   playsession.MediaTable,
+			Columns: []string{playsession.MediaColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
@@ -136,6 +221,7 @@ func (pscb *PlaySessionCreateBulk) Save(ctx context.Context) ([]*PlaySession, er
 	for i := range pscb.builders {
 		func(i int, root context.Context) {
 			builder := pscb.builders[i]
+			builder.defaults()
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*PlaySessionMutation)
 				if !ok {

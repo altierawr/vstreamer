@@ -31,17 +31,26 @@ type Video struct {
 
 // VideoEdges holds the relations/edges for other nodes in the graph.
 type VideoEdges struct {
+	// PlaySessionMedias holds the value of the play_session_medias edge.
+	PlaySessionMedias []*PlaySessionMedia `json:"play_session_medias,omitempty"`
 	// Library holds the value of the library edge.
 	Library *Library `json:"library,omitempty"`
-	// PlaySessions holds the value of the play_sessions edge.
-	PlaySessions []*PlaySession `json:"play_sessions,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [2]bool
 	// totalCount holds the count of the edges above.
 	totalCount [2]map[string]int
 
-	namedPlaySessions map[string][]*PlaySession
+	namedPlaySessionMedias map[string][]*PlaySessionMedia
+}
+
+// PlaySessionMediasOrErr returns the PlaySessionMedias value or an error if the edge
+// was not loaded in eager-loading.
+func (e VideoEdges) PlaySessionMediasOrErr() ([]*PlaySessionMedia, error) {
+	if e.loadedTypes[0] {
+		return e.PlaySessionMedias, nil
+	}
+	return nil, &NotLoadedError{edge: "play_session_medias"}
 }
 
 // LibraryOrErr returns the Library value or an error if the edge
@@ -49,19 +58,10 @@ type VideoEdges struct {
 func (e VideoEdges) LibraryOrErr() (*Library, error) {
 	if e.Library != nil {
 		return e.Library, nil
-	} else if e.loadedTypes[0] {
+	} else if e.loadedTypes[1] {
 		return nil, &NotFoundError{label: library.Label}
 	}
 	return nil, &NotLoadedError{edge: "library"}
-}
-
-// PlaySessionsOrErr returns the PlaySessions value or an error if the edge
-// was not loaded in eager-loading.
-func (e VideoEdges) PlaySessionsOrErr() ([]*PlaySession, error) {
-	if e.loadedTypes[1] {
-		return e.PlaySessions, nil
-	}
-	return nil, &NotLoadedError{edge: "play_sessions"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -130,14 +130,14 @@ func (v *Video) Value(name string) (ent.Value, error) {
 	return v.selectValues.Get(name)
 }
 
+// QueryPlaySessionMedias queries the "play_session_medias" edge of the Video entity.
+func (v *Video) QueryPlaySessionMedias() *PlaySessionMediaQuery {
+	return NewVideoClient(v.config).QueryPlaySessionMedias(v)
+}
+
 // QueryLibrary queries the "library" edge of the Video entity.
 func (v *Video) QueryLibrary() *LibraryQuery {
 	return NewVideoClient(v.config).QueryLibrary(v)
-}
-
-// QueryPlaySessions queries the "play_sessions" edge of the Video entity.
-func (v *Video) QueryPlaySessions() *PlaySessionQuery {
-	return NewVideoClient(v.config).QueryPlaySessions(v)
 }
 
 // Update returns a builder for updating this Video.
@@ -172,27 +172,27 @@ func (v *Video) String() string {
 	return builder.String()
 }
 
-// NamedPlaySessions returns the PlaySessions named value or an error if the edge was not
+// NamedPlaySessionMedias returns the PlaySessionMedias named value or an error if the edge was not
 // loaded in eager-loading with this name.
-func (v *Video) NamedPlaySessions(name string) ([]*PlaySession, error) {
-	if v.Edges.namedPlaySessions == nil {
+func (v *Video) NamedPlaySessionMedias(name string) ([]*PlaySessionMedia, error) {
+	if v.Edges.namedPlaySessionMedias == nil {
 		return nil, &NotLoadedError{edge: name}
 	}
-	nodes, ok := v.Edges.namedPlaySessions[name]
+	nodes, ok := v.Edges.namedPlaySessionMedias[name]
 	if !ok {
 		return nil, &NotLoadedError{edge: name}
 	}
 	return nodes, nil
 }
 
-func (v *Video) appendNamedPlaySessions(name string, edges ...*PlaySession) {
-	if v.Edges.namedPlaySessions == nil {
-		v.Edges.namedPlaySessions = make(map[string][]*PlaySession)
+func (v *Video) appendNamedPlaySessionMedias(name string, edges ...*PlaySessionMedia) {
+	if v.Edges.namedPlaySessionMedias == nil {
+		v.Edges.namedPlaySessionMedias = make(map[string][]*PlaySessionMedia)
 	}
 	if len(edges) == 0 {
-		v.Edges.namedPlaySessions[name] = []*PlaySession{}
+		v.Edges.namedPlaySessionMedias[name] = []*PlaySessionMedia{}
 	} else {
-		v.Edges.namedPlaySessions[name] = append(v.Edges.namedPlaySessions[name], edges...)
+		v.Edges.namedPlaySessionMedias[name] = append(v.Edges.namedPlaySessionMedias[name], edges...)
 	}
 }
 

@@ -11,8 +11,12 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/errcode"
+	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/library"
+	"github.com/altierawr/vstreamer/ent/playbackclient"
 	"github.com/altierawr/vstreamer/ent/playsession"
+	"github.com/altierawr/vstreamer/ent/playsessionmedia"
+	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/video"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
@@ -95,6 +99,255 @@ func paginateLimit(first, last *int) int {
 		limit = *last + 1
 	}
 	return limit
+}
+
+// AudioTrackEdge is the edge representation of AudioTrack.
+type AudioTrackEdge struct {
+	Node   *AudioTrack `json:"node"`
+	Cursor Cursor      `json:"cursor"`
+}
+
+// AudioTrackConnection is the connection containing edges to AudioTrack.
+type AudioTrackConnection struct {
+	Edges      []*AudioTrackEdge `json:"edges"`
+	PageInfo   PageInfo          `json:"pageInfo"`
+	TotalCount int               `json:"totalCount"`
+}
+
+func (c *AudioTrackConnection) build(nodes []*AudioTrack, pager *audiotrackPager, after *Cursor, first *int, before *Cursor, last *int) {
+	c.PageInfo.HasNextPage = before != nil
+	c.PageInfo.HasPreviousPage = after != nil
+	if first != nil && *first+1 == len(nodes) {
+		c.PageInfo.HasNextPage = true
+		nodes = nodes[:len(nodes)-1]
+	} else if last != nil && *last+1 == len(nodes) {
+		c.PageInfo.HasPreviousPage = true
+		nodes = nodes[:len(nodes)-1]
+	}
+	var nodeAt func(int) *AudioTrack
+	if last != nil {
+		n := len(nodes) - 1
+		nodeAt = func(i int) *AudioTrack {
+			return nodes[n-i]
+		}
+	} else {
+		nodeAt = func(i int) *AudioTrack {
+			return nodes[i]
+		}
+	}
+	c.Edges = make([]*AudioTrackEdge, len(nodes))
+	for i := range nodes {
+		node := nodeAt(i)
+		c.Edges[i] = &AudioTrackEdge{
+			Node:   node,
+			Cursor: pager.toCursor(node),
+		}
+	}
+	if l := len(c.Edges); l > 0 {
+		c.PageInfo.StartCursor = &c.Edges[0].Cursor
+		c.PageInfo.EndCursor = &c.Edges[l-1].Cursor
+	}
+	if c.TotalCount == 0 {
+		c.TotalCount = len(nodes)
+	}
+}
+
+// AudioTrackPaginateOption enables pagination customization.
+type AudioTrackPaginateOption func(*audiotrackPager) error
+
+// WithAudioTrackOrder configures pagination ordering.
+func WithAudioTrackOrder(order *AudioTrackOrder) AudioTrackPaginateOption {
+	if order == nil {
+		order = DefaultAudioTrackOrder
+	}
+	o := *order
+	return func(pager *audiotrackPager) error {
+		if err := o.Direction.Validate(); err != nil {
+			return err
+		}
+		if o.Field == nil {
+			o.Field = DefaultAudioTrackOrder.Field
+		}
+		pager.order = &o
+		return nil
+	}
+}
+
+// WithAudioTrackFilter configures pagination filter.
+func WithAudioTrackFilter(filter func(*AudioTrackQuery) (*AudioTrackQuery, error)) AudioTrackPaginateOption {
+	return func(pager *audiotrackPager) error {
+		if filter == nil {
+			return errors.New("AudioTrackQuery filter cannot be nil")
+		}
+		pager.filter = filter
+		return nil
+	}
+}
+
+type audiotrackPager struct {
+	reverse bool
+	order   *AudioTrackOrder
+	filter  func(*AudioTrackQuery) (*AudioTrackQuery, error)
+}
+
+func newAudioTrackPager(opts []AudioTrackPaginateOption, reverse bool) (*audiotrackPager, error) {
+	pager := &audiotrackPager{reverse: reverse}
+	for _, opt := range opts {
+		if err := opt(pager); err != nil {
+			return nil, err
+		}
+	}
+	if pager.order == nil {
+		pager.order = DefaultAudioTrackOrder
+	}
+	return pager, nil
+}
+
+func (p *audiotrackPager) applyFilter(query *AudioTrackQuery) (*AudioTrackQuery, error) {
+	if p.filter != nil {
+		return p.filter(query)
+	}
+	return query, nil
+}
+
+func (p *audiotrackPager) toCursor(at *AudioTrack) Cursor {
+	return p.order.Field.toCursor(at)
+}
+
+func (p *audiotrackPager) applyCursors(query *AudioTrackQuery, after, before *Cursor) (*AudioTrackQuery, error) {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	for _, predicate := range entgql.CursorsPredicate(after, before, DefaultAudioTrackOrder.Field.column, p.order.Field.column, direction) {
+		query = query.Where(predicate)
+	}
+	return query, nil
+}
+
+func (p *audiotrackPager) applyOrder(query *AudioTrackQuery) *AudioTrackQuery {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	query = query.Order(p.order.Field.toTerm(direction.OrderTermOption()))
+	if p.order.Field != DefaultAudioTrackOrder.Field {
+		query = query.Order(DefaultAudioTrackOrder.Field.toTerm(direction.OrderTermOption()))
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return query
+}
+
+func (p *audiotrackPager) orderExpr(query *AudioTrackQuery) sql.Querier {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return sql.ExprFunc(func(b *sql.Builder) {
+		b.Ident(p.order.Field.column).Pad().WriteString(string(direction))
+		if p.order.Field != DefaultAudioTrackOrder.Field {
+			b.Comma().Ident(DefaultAudioTrackOrder.Field.column).Pad().WriteString(string(direction))
+		}
+	})
+}
+
+// Paginate executes the query and returns a relay based cursor connection to AudioTrack.
+func (at *AudioTrackQuery) Paginate(
+	ctx context.Context, after *Cursor, first *int,
+	before *Cursor, last *int, opts ...AudioTrackPaginateOption,
+) (*AudioTrackConnection, error) {
+	if err := validateFirstLast(first, last); err != nil {
+		return nil, err
+	}
+	pager, err := newAudioTrackPager(opts, last != nil)
+	if err != nil {
+		return nil, err
+	}
+	if at, err = pager.applyFilter(at); err != nil {
+		return nil, err
+	}
+	conn := &AudioTrackConnection{Edges: []*AudioTrackEdge{}}
+	ignoredEdges := !hasCollectedField(ctx, edgesField)
+	if hasCollectedField(ctx, totalCountField) || hasCollectedField(ctx, pageInfoField) {
+		hasPagination := after != nil || first != nil || before != nil || last != nil
+		if hasPagination || ignoredEdges {
+			c := at.Clone()
+			c.ctx.Fields = nil
+			if conn.TotalCount, err = c.Count(ctx); err != nil {
+				return nil, err
+			}
+			conn.PageInfo.HasNextPage = first != nil && conn.TotalCount > 0
+			conn.PageInfo.HasPreviousPage = last != nil && conn.TotalCount > 0
+		}
+	}
+	if ignoredEdges || (first != nil && *first == 0) || (last != nil && *last == 0) {
+		return conn, nil
+	}
+	if at, err = pager.applyCursors(at, after, before); err != nil {
+		return nil, err
+	}
+	limit := paginateLimit(first, last)
+	if limit != 0 {
+		at.Limit(limit)
+	}
+	if field := collectedField(ctx, edgesField, nodeField); field != nil {
+		if err := at.collectField(ctx, limit == 1, graphql.GetOperationContext(ctx), *field, []string{edgesField, nodeField}); err != nil {
+			return nil, err
+		}
+	}
+	at = pager.applyOrder(at)
+	nodes, err := at.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	conn.build(nodes, pager, after, first, before, last)
+	return conn, nil
+}
+
+// AudioTrackOrderField defines the ordering field of AudioTrack.
+type AudioTrackOrderField struct {
+	// Value extracts the ordering value from the given AudioTrack.
+	Value    func(*AudioTrack) (ent.Value, error)
+	column   string // field or computed.
+	toTerm   func(...sql.OrderTermOption) audiotrack.OrderOption
+	toCursor func(*AudioTrack) Cursor
+}
+
+// AudioTrackOrder defines the ordering of AudioTrack.
+type AudioTrackOrder struct {
+	Direction OrderDirection        `json:"direction"`
+	Field     *AudioTrackOrderField `json:"field"`
+}
+
+// DefaultAudioTrackOrder is the default ordering of AudioTrack.
+var DefaultAudioTrackOrder = &AudioTrackOrder{
+	Direction: entgql.OrderDirectionAsc,
+	Field: &AudioTrackOrderField{
+		Value: func(at *AudioTrack) (ent.Value, error) {
+			return at.ID, nil
+		},
+		column: audiotrack.FieldID,
+		toTerm: audiotrack.ByID,
+		toCursor: func(at *AudioTrack) Cursor {
+			return Cursor{ID: at.ID}
+		},
+	},
+}
+
+// ToEdge converts AudioTrack into AudioTrackEdge.
+func (at *AudioTrack) ToEdge(order *AudioTrackOrder) *AudioTrackEdge {
+	if order == nil {
+		order = DefaultAudioTrackOrder
+	}
+	return &AudioTrackEdge{
+		Node:   at,
+		Cursor: order.Field.toCursor(at),
+	}
 }
 
 // LibraryEdge is the edge representation of Library.
@@ -592,6 +845,753 @@ func (ps *PlaySession) ToEdge(order *PlaySessionOrder) *PlaySessionEdge {
 	return &PlaySessionEdge{
 		Node:   ps,
 		Cursor: order.Field.toCursor(ps),
+	}
+}
+
+// PlaySessionMediaEdge is the edge representation of PlaySessionMedia.
+type PlaySessionMediaEdge struct {
+	Node   *PlaySessionMedia `json:"node"`
+	Cursor Cursor            `json:"cursor"`
+}
+
+// PlaySessionMediaConnection is the connection containing edges to PlaySessionMedia.
+type PlaySessionMediaConnection struct {
+	Edges      []*PlaySessionMediaEdge `json:"edges"`
+	PageInfo   PageInfo                `json:"pageInfo"`
+	TotalCount int                     `json:"totalCount"`
+}
+
+func (c *PlaySessionMediaConnection) build(nodes []*PlaySessionMedia, pager *playsessionmediaPager, after *Cursor, first *int, before *Cursor, last *int) {
+	c.PageInfo.HasNextPage = before != nil
+	c.PageInfo.HasPreviousPage = after != nil
+	if first != nil && *first+1 == len(nodes) {
+		c.PageInfo.HasNextPage = true
+		nodes = nodes[:len(nodes)-1]
+	} else if last != nil && *last+1 == len(nodes) {
+		c.PageInfo.HasPreviousPage = true
+		nodes = nodes[:len(nodes)-1]
+	}
+	var nodeAt func(int) *PlaySessionMedia
+	if last != nil {
+		n := len(nodes) - 1
+		nodeAt = func(i int) *PlaySessionMedia {
+			return nodes[n-i]
+		}
+	} else {
+		nodeAt = func(i int) *PlaySessionMedia {
+			return nodes[i]
+		}
+	}
+	c.Edges = make([]*PlaySessionMediaEdge, len(nodes))
+	for i := range nodes {
+		node := nodeAt(i)
+		c.Edges[i] = &PlaySessionMediaEdge{
+			Node:   node,
+			Cursor: pager.toCursor(node),
+		}
+	}
+	if l := len(c.Edges); l > 0 {
+		c.PageInfo.StartCursor = &c.Edges[0].Cursor
+		c.PageInfo.EndCursor = &c.Edges[l-1].Cursor
+	}
+	if c.TotalCount == 0 {
+		c.TotalCount = len(nodes)
+	}
+}
+
+// PlaySessionMediaPaginateOption enables pagination customization.
+type PlaySessionMediaPaginateOption func(*playsessionmediaPager) error
+
+// WithPlaySessionMediaOrder configures pagination ordering.
+func WithPlaySessionMediaOrder(order *PlaySessionMediaOrder) PlaySessionMediaPaginateOption {
+	if order == nil {
+		order = DefaultPlaySessionMediaOrder
+	}
+	o := *order
+	return func(pager *playsessionmediaPager) error {
+		if err := o.Direction.Validate(); err != nil {
+			return err
+		}
+		if o.Field == nil {
+			o.Field = DefaultPlaySessionMediaOrder.Field
+		}
+		pager.order = &o
+		return nil
+	}
+}
+
+// WithPlaySessionMediaFilter configures pagination filter.
+func WithPlaySessionMediaFilter(filter func(*PlaySessionMediaQuery) (*PlaySessionMediaQuery, error)) PlaySessionMediaPaginateOption {
+	return func(pager *playsessionmediaPager) error {
+		if filter == nil {
+			return errors.New("PlaySessionMediaQuery filter cannot be nil")
+		}
+		pager.filter = filter
+		return nil
+	}
+}
+
+type playsessionmediaPager struct {
+	reverse bool
+	order   *PlaySessionMediaOrder
+	filter  func(*PlaySessionMediaQuery) (*PlaySessionMediaQuery, error)
+}
+
+func newPlaySessionMediaPager(opts []PlaySessionMediaPaginateOption, reverse bool) (*playsessionmediaPager, error) {
+	pager := &playsessionmediaPager{reverse: reverse}
+	for _, opt := range opts {
+		if err := opt(pager); err != nil {
+			return nil, err
+		}
+	}
+	if pager.order == nil {
+		pager.order = DefaultPlaySessionMediaOrder
+	}
+	return pager, nil
+}
+
+func (p *playsessionmediaPager) applyFilter(query *PlaySessionMediaQuery) (*PlaySessionMediaQuery, error) {
+	if p.filter != nil {
+		return p.filter(query)
+	}
+	return query, nil
+}
+
+func (p *playsessionmediaPager) toCursor(psm *PlaySessionMedia) Cursor {
+	return p.order.Field.toCursor(psm)
+}
+
+func (p *playsessionmediaPager) applyCursors(query *PlaySessionMediaQuery, after, before *Cursor) (*PlaySessionMediaQuery, error) {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	for _, predicate := range entgql.CursorsPredicate(after, before, DefaultPlaySessionMediaOrder.Field.column, p.order.Field.column, direction) {
+		query = query.Where(predicate)
+	}
+	return query, nil
+}
+
+func (p *playsessionmediaPager) applyOrder(query *PlaySessionMediaQuery) *PlaySessionMediaQuery {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	query = query.Order(p.order.Field.toTerm(direction.OrderTermOption()))
+	if p.order.Field != DefaultPlaySessionMediaOrder.Field {
+		query = query.Order(DefaultPlaySessionMediaOrder.Field.toTerm(direction.OrderTermOption()))
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return query
+}
+
+func (p *playsessionmediaPager) orderExpr(query *PlaySessionMediaQuery) sql.Querier {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return sql.ExprFunc(func(b *sql.Builder) {
+		b.Ident(p.order.Field.column).Pad().WriteString(string(direction))
+		if p.order.Field != DefaultPlaySessionMediaOrder.Field {
+			b.Comma().Ident(DefaultPlaySessionMediaOrder.Field.column).Pad().WriteString(string(direction))
+		}
+	})
+}
+
+// Paginate executes the query and returns a relay based cursor connection to PlaySessionMedia.
+func (psm *PlaySessionMediaQuery) Paginate(
+	ctx context.Context, after *Cursor, first *int,
+	before *Cursor, last *int, opts ...PlaySessionMediaPaginateOption,
+) (*PlaySessionMediaConnection, error) {
+	if err := validateFirstLast(first, last); err != nil {
+		return nil, err
+	}
+	pager, err := newPlaySessionMediaPager(opts, last != nil)
+	if err != nil {
+		return nil, err
+	}
+	if psm, err = pager.applyFilter(psm); err != nil {
+		return nil, err
+	}
+	conn := &PlaySessionMediaConnection{Edges: []*PlaySessionMediaEdge{}}
+	ignoredEdges := !hasCollectedField(ctx, edgesField)
+	if hasCollectedField(ctx, totalCountField) || hasCollectedField(ctx, pageInfoField) {
+		hasPagination := after != nil || first != nil || before != nil || last != nil
+		if hasPagination || ignoredEdges {
+			c := psm.Clone()
+			c.ctx.Fields = nil
+			if conn.TotalCount, err = c.Count(ctx); err != nil {
+				return nil, err
+			}
+			conn.PageInfo.HasNextPage = first != nil && conn.TotalCount > 0
+			conn.PageInfo.HasPreviousPage = last != nil && conn.TotalCount > 0
+		}
+	}
+	if ignoredEdges || (first != nil && *first == 0) || (last != nil && *last == 0) {
+		return conn, nil
+	}
+	if psm, err = pager.applyCursors(psm, after, before); err != nil {
+		return nil, err
+	}
+	limit := paginateLimit(first, last)
+	if limit != 0 {
+		psm.Limit(limit)
+	}
+	if field := collectedField(ctx, edgesField, nodeField); field != nil {
+		if err := psm.collectField(ctx, limit == 1, graphql.GetOperationContext(ctx), *field, []string{edgesField, nodeField}); err != nil {
+			return nil, err
+		}
+	}
+	psm = pager.applyOrder(psm)
+	nodes, err := psm.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	conn.build(nodes, pager, after, first, before, last)
+	return conn, nil
+}
+
+// PlaySessionMediaOrderField defines the ordering field of PlaySessionMedia.
+type PlaySessionMediaOrderField struct {
+	// Value extracts the ordering value from the given PlaySessionMedia.
+	Value    func(*PlaySessionMedia) (ent.Value, error)
+	column   string // field or computed.
+	toTerm   func(...sql.OrderTermOption) playsessionmedia.OrderOption
+	toCursor func(*PlaySessionMedia) Cursor
+}
+
+// PlaySessionMediaOrder defines the ordering of PlaySessionMedia.
+type PlaySessionMediaOrder struct {
+	Direction OrderDirection              `json:"direction"`
+	Field     *PlaySessionMediaOrderField `json:"field"`
+}
+
+// DefaultPlaySessionMediaOrder is the default ordering of PlaySessionMedia.
+var DefaultPlaySessionMediaOrder = &PlaySessionMediaOrder{
+	Direction: entgql.OrderDirectionAsc,
+	Field: &PlaySessionMediaOrderField{
+		Value: func(psm *PlaySessionMedia) (ent.Value, error) {
+			return psm.ID, nil
+		},
+		column: playsessionmedia.FieldID,
+		toTerm: playsessionmedia.ByID,
+		toCursor: func(psm *PlaySessionMedia) Cursor {
+			return Cursor{ID: psm.ID}
+		},
+	},
+}
+
+// ToEdge converts PlaySessionMedia into PlaySessionMediaEdge.
+func (psm *PlaySessionMedia) ToEdge(order *PlaySessionMediaOrder) *PlaySessionMediaEdge {
+	if order == nil {
+		order = DefaultPlaySessionMediaOrder
+	}
+	return &PlaySessionMediaEdge{
+		Node:   psm,
+		Cursor: order.Field.toCursor(psm),
+	}
+}
+
+// PlaybackClientEdge is the edge representation of PlaybackClient.
+type PlaybackClientEdge struct {
+	Node   *PlaybackClient `json:"node"`
+	Cursor Cursor          `json:"cursor"`
+}
+
+// PlaybackClientConnection is the connection containing edges to PlaybackClient.
+type PlaybackClientConnection struct {
+	Edges      []*PlaybackClientEdge `json:"edges"`
+	PageInfo   PageInfo              `json:"pageInfo"`
+	TotalCount int                   `json:"totalCount"`
+}
+
+func (c *PlaybackClientConnection) build(nodes []*PlaybackClient, pager *playbackclientPager, after *Cursor, first *int, before *Cursor, last *int) {
+	c.PageInfo.HasNextPage = before != nil
+	c.PageInfo.HasPreviousPage = after != nil
+	if first != nil && *first+1 == len(nodes) {
+		c.PageInfo.HasNextPage = true
+		nodes = nodes[:len(nodes)-1]
+	} else if last != nil && *last+1 == len(nodes) {
+		c.PageInfo.HasPreviousPage = true
+		nodes = nodes[:len(nodes)-1]
+	}
+	var nodeAt func(int) *PlaybackClient
+	if last != nil {
+		n := len(nodes) - 1
+		nodeAt = func(i int) *PlaybackClient {
+			return nodes[n-i]
+		}
+	} else {
+		nodeAt = func(i int) *PlaybackClient {
+			return nodes[i]
+		}
+	}
+	c.Edges = make([]*PlaybackClientEdge, len(nodes))
+	for i := range nodes {
+		node := nodeAt(i)
+		c.Edges[i] = &PlaybackClientEdge{
+			Node:   node,
+			Cursor: pager.toCursor(node),
+		}
+	}
+	if l := len(c.Edges); l > 0 {
+		c.PageInfo.StartCursor = &c.Edges[0].Cursor
+		c.PageInfo.EndCursor = &c.Edges[l-1].Cursor
+	}
+	if c.TotalCount == 0 {
+		c.TotalCount = len(nodes)
+	}
+}
+
+// PlaybackClientPaginateOption enables pagination customization.
+type PlaybackClientPaginateOption func(*playbackclientPager) error
+
+// WithPlaybackClientOrder configures pagination ordering.
+func WithPlaybackClientOrder(order *PlaybackClientOrder) PlaybackClientPaginateOption {
+	if order == nil {
+		order = DefaultPlaybackClientOrder
+	}
+	o := *order
+	return func(pager *playbackclientPager) error {
+		if err := o.Direction.Validate(); err != nil {
+			return err
+		}
+		if o.Field == nil {
+			o.Field = DefaultPlaybackClientOrder.Field
+		}
+		pager.order = &o
+		return nil
+	}
+}
+
+// WithPlaybackClientFilter configures pagination filter.
+func WithPlaybackClientFilter(filter func(*PlaybackClientQuery) (*PlaybackClientQuery, error)) PlaybackClientPaginateOption {
+	return func(pager *playbackclientPager) error {
+		if filter == nil {
+			return errors.New("PlaybackClientQuery filter cannot be nil")
+		}
+		pager.filter = filter
+		return nil
+	}
+}
+
+type playbackclientPager struct {
+	reverse bool
+	order   *PlaybackClientOrder
+	filter  func(*PlaybackClientQuery) (*PlaybackClientQuery, error)
+}
+
+func newPlaybackClientPager(opts []PlaybackClientPaginateOption, reverse bool) (*playbackclientPager, error) {
+	pager := &playbackclientPager{reverse: reverse}
+	for _, opt := range opts {
+		if err := opt(pager); err != nil {
+			return nil, err
+		}
+	}
+	if pager.order == nil {
+		pager.order = DefaultPlaybackClientOrder
+	}
+	return pager, nil
+}
+
+func (p *playbackclientPager) applyFilter(query *PlaybackClientQuery) (*PlaybackClientQuery, error) {
+	if p.filter != nil {
+		return p.filter(query)
+	}
+	return query, nil
+}
+
+func (p *playbackclientPager) toCursor(pc *PlaybackClient) Cursor {
+	return p.order.Field.toCursor(pc)
+}
+
+func (p *playbackclientPager) applyCursors(query *PlaybackClientQuery, after, before *Cursor) (*PlaybackClientQuery, error) {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	for _, predicate := range entgql.CursorsPredicate(after, before, DefaultPlaybackClientOrder.Field.column, p.order.Field.column, direction) {
+		query = query.Where(predicate)
+	}
+	return query, nil
+}
+
+func (p *playbackclientPager) applyOrder(query *PlaybackClientQuery) *PlaybackClientQuery {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	query = query.Order(p.order.Field.toTerm(direction.OrderTermOption()))
+	if p.order.Field != DefaultPlaybackClientOrder.Field {
+		query = query.Order(DefaultPlaybackClientOrder.Field.toTerm(direction.OrderTermOption()))
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return query
+}
+
+func (p *playbackclientPager) orderExpr(query *PlaybackClientQuery) sql.Querier {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return sql.ExprFunc(func(b *sql.Builder) {
+		b.Ident(p.order.Field.column).Pad().WriteString(string(direction))
+		if p.order.Field != DefaultPlaybackClientOrder.Field {
+			b.Comma().Ident(DefaultPlaybackClientOrder.Field.column).Pad().WriteString(string(direction))
+		}
+	})
+}
+
+// Paginate executes the query and returns a relay based cursor connection to PlaybackClient.
+func (pc *PlaybackClientQuery) Paginate(
+	ctx context.Context, after *Cursor, first *int,
+	before *Cursor, last *int, opts ...PlaybackClientPaginateOption,
+) (*PlaybackClientConnection, error) {
+	if err := validateFirstLast(first, last); err != nil {
+		return nil, err
+	}
+	pager, err := newPlaybackClientPager(opts, last != nil)
+	if err != nil {
+		return nil, err
+	}
+	if pc, err = pager.applyFilter(pc); err != nil {
+		return nil, err
+	}
+	conn := &PlaybackClientConnection{Edges: []*PlaybackClientEdge{}}
+	ignoredEdges := !hasCollectedField(ctx, edgesField)
+	if hasCollectedField(ctx, totalCountField) || hasCollectedField(ctx, pageInfoField) {
+		hasPagination := after != nil || first != nil || before != nil || last != nil
+		if hasPagination || ignoredEdges {
+			c := pc.Clone()
+			c.ctx.Fields = nil
+			if conn.TotalCount, err = c.Count(ctx); err != nil {
+				return nil, err
+			}
+			conn.PageInfo.HasNextPage = first != nil && conn.TotalCount > 0
+			conn.PageInfo.HasPreviousPage = last != nil && conn.TotalCount > 0
+		}
+	}
+	if ignoredEdges || (first != nil && *first == 0) || (last != nil && *last == 0) {
+		return conn, nil
+	}
+	if pc, err = pager.applyCursors(pc, after, before); err != nil {
+		return nil, err
+	}
+	limit := paginateLimit(first, last)
+	if limit != 0 {
+		pc.Limit(limit)
+	}
+	if field := collectedField(ctx, edgesField, nodeField); field != nil {
+		if err := pc.collectField(ctx, limit == 1, graphql.GetOperationContext(ctx), *field, []string{edgesField, nodeField}); err != nil {
+			return nil, err
+		}
+	}
+	pc = pager.applyOrder(pc)
+	nodes, err := pc.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	conn.build(nodes, pager, after, first, before, last)
+	return conn, nil
+}
+
+// PlaybackClientOrderField defines the ordering field of PlaybackClient.
+type PlaybackClientOrderField struct {
+	// Value extracts the ordering value from the given PlaybackClient.
+	Value    func(*PlaybackClient) (ent.Value, error)
+	column   string // field or computed.
+	toTerm   func(...sql.OrderTermOption) playbackclient.OrderOption
+	toCursor func(*PlaybackClient) Cursor
+}
+
+// PlaybackClientOrder defines the ordering of PlaybackClient.
+type PlaybackClientOrder struct {
+	Direction OrderDirection            `json:"direction"`
+	Field     *PlaybackClientOrderField `json:"field"`
+}
+
+// DefaultPlaybackClientOrder is the default ordering of PlaybackClient.
+var DefaultPlaybackClientOrder = &PlaybackClientOrder{
+	Direction: entgql.OrderDirectionAsc,
+	Field: &PlaybackClientOrderField{
+		Value: func(pc *PlaybackClient) (ent.Value, error) {
+			return pc.ID, nil
+		},
+		column: playbackclient.FieldID,
+		toTerm: playbackclient.ByID,
+		toCursor: func(pc *PlaybackClient) Cursor {
+			return Cursor{ID: pc.ID}
+		},
+	},
+}
+
+// ToEdge converts PlaybackClient into PlaybackClientEdge.
+func (pc *PlaybackClient) ToEdge(order *PlaybackClientOrder) *PlaybackClientEdge {
+	if order == nil {
+		order = DefaultPlaybackClientOrder
+	}
+	return &PlaybackClientEdge{
+		Node:   pc,
+		Cursor: order.Field.toCursor(pc),
+	}
+}
+
+// StreamEdge is the edge representation of Stream.
+type StreamEdge struct {
+	Node   *Stream `json:"node"`
+	Cursor Cursor  `json:"cursor"`
+}
+
+// StreamConnection is the connection containing edges to Stream.
+type StreamConnection struct {
+	Edges      []*StreamEdge `json:"edges"`
+	PageInfo   PageInfo      `json:"pageInfo"`
+	TotalCount int           `json:"totalCount"`
+}
+
+func (c *StreamConnection) build(nodes []*Stream, pager *streamPager, after *Cursor, first *int, before *Cursor, last *int) {
+	c.PageInfo.HasNextPage = before != nil
+	c.PageInfo.HasPreviousPage = after != nil
+	if first != nil && *first+1 == len(nodes) {
+		c.PageInfo.HasNextPage = true
+		nodes = nodes[:len(nodes)-1]
+	} else if last != nil && *last+1 == len(nodes) {
+		c.PageInfo.HasPreviousPage = true
+		nodes = nodes[:len(nodes)-1]
+	}
+	var nodeAt func(int) *Stream
+	if last != nil {
+		n := len(nodes) - 1
+		nodeAt = func(i int) *Stream {
+			return nodes[n-i]
+		}
+	} else {
+		nodeAt = func(i int) *Stream {
+			return nodes[i]
+		}
+	}
+	c.Edges = make([]*StreamEdge, len(nodes))
+	for i := range nodes {
+		node := nodeAt(i)
+		c.Edges[i] = &StreamEdge{
+			Node:   node,
+			Cursor: pager.toCursor(node),
+		}
+	}
+	if l := len(c.Edges); l > 0 {
+		c.PageInfo.StartCursor = &c.Edges[0].Cursor
+		c.PageInfo.EndCursor = &c.Edges[l-1].Cursor
+	}
+	if c.TotalCount == 0 {
+		c.TotalCount = len(nodes)
+	}
+}
+
+// StreamPaginateOption enables pagination customization.
+type StreamPaginateOption func(*streamPager) error
+
+// WithStreamOrder configures pagination ordering.
+func WithStreamOrder(order *StreamOrder) StreamPaginateOption {
+	if order == nil {
+		order = DefaultStreamOrder
+	}
+	o := *order
+	return func(pager *streamPager) error {
+		if err := o.Direction.Validate(); err != nil {
+			return err
+		}
+		if o.Field == nil {
+			o.Field = DefaultStreamOrder.Field
+		}
+		pager.order = &o
+		return nil
+	}
+}
+
+// WithStreamFilter configures pagination filter.
+func WithStreamFilter(filter func(*StreamQuery) (*StreamQuery, error)) StreamPaginateOption {
+	return func(pager *streamPager) error {
+		if filter == nil {
+			return errors.New("StreamQuery filter cannot be nil")
+		}
+		pager.filter = filter
+		return nil
+	}
+}
+
+type streamPager struct {
+	reverse bool
+	order   *StreamOrder
+	filter  func(*StreamQuery) (*StreamQuery, error)
+}
+
+func newStreamPager(opts []StreamPaginateOption, reverse bool) (*streamPager, error) {
+	pager := &streamPager{reverse: reverse}
+	for _, opt := range opts {
+		if err := opt(pager); err != nil {
+			return nil, err
+		}
+	}
+	if pager.order == nil {
+		pager.order = DefaultStreamOrder
+	}
+	return pager, nil
+}
+
+func (p *streamPager) applyFilter(query *StreamQuery) (*StreamQuery, error) {
+	if p.filter != nil {
+		return p.filter(query)
+	}
+	return query, nil
+}
+
+func (p *streamPager) toCursor(s *Stream) Cursor {
+	return p.order.Field.toCursor(s)
+}
+
+func (p *streamPager) applyCursors(query *StreamQuery, after, before *Cursor) (*StreamQuery, error) {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	for _, predicate := range entgql.CursorsPredicate(after, before, DefaultStreamOrder.Field.column, p.order.Field.column, direction) {
+		query = query.Where(predicate)
+	}
+	return query, nil
+}
+
+func (p *streamPager) applyOrder(query *StreamQuery) *StreamQuery {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	query = query.Order(p.order.Field.toTerm(direction.OrderTermOption()))
+	if p.order.Field != DefaultStreamOrder.Field {
+		query = query.Order(DefaultStreamOrder.Field.toTerm(direction.OrderTermOption()))
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return query
+}
+
+func (p *streamPager) orderExpr(query *StreamQuery) sql.Querier {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return sql.ExprFunc(func(b *sql.Builder) {
+		b.Ident(p.order.Field.column).Pad().WriteString(string(direction))
+		if p.order.Field != DefaultStreamOrder.Field {
+			b.Comma().Ident(DefaultStreamOrder.Field.column).Pad().WriteString(string(direction))
+		}
+	})
+}
+
+// Paginate executes the query and returns a relay based cursor connection to Stream.
+func (s *StreamQuery) Paginate(
+	ctx context.Context, after *Cursor, first *int,
+	before *Cursor, last *int, opts ...StreamPaginateOption,
+) (*StreamConnection, error) {
+	if err := validateFirstLast(first, last); err != nil {
+		return nil, err
+	}
+	pager, err := newStreamPager(opts, last != nil)
+	if err != nil {
+		return nil, err
+	}
+	if s, err = pager.applyFilter(s); err != nil {
+		return nil, err
+	}
+	conn := &StreamConnection{Edges: []*StreamEdge{}}
+	ignoredEdges := !hasCollectedField(ctx, edgesField)
+	if hasCollectedField(ctx, totalCountField) || hasCollectedField(ctx, pageInfoField) {
+		hasPagination := after != nil || first != nil || before != nil || last != nil
+		if hasPagination || ignoredEdges {
+			c := s.Clone()
+			c.ctx.Fields = nil
+			if conn.TotalCount, err = c.Count(ctx); err != nil {
+				return nil, err
+			}
+			conn.PageInfo.HasNextPage = first != nil && conn.TotalCount > 0
+			conn.PageInfo.HasPreviousPage = last != nil && conn.TotalCount > 0
+		}
+	}
+	if ignoredEdges || (first != nil && *first == 0) || (last != nil && *last == 0) {
+		return conn, nil
+	}
+	if s, err = pager.applyCursors(s, after, before); err != nil {
+		return nil, err
+	}
+	limit := paginateLimit(first, last)
+	if limit != 0 {
+		s.Limit(limit)
+	}
+	if field := collectedField(ctx, edgesField, nodeField); field != nil {
+		if err := s.collectField(ctx, limit == 1, graphql.GetOperationContext(ctx), *field, []string{edgesField, nodeField}); err != nil {
+			return nil, err
+		}
+	}
+	s = pager.applyOrder(s)
+	nodes, err := s.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	conn.build(nodes, pager, after, first, before, last)
+	return conn, nil
+}
+
+// StreamOrderField defines the ordering field of Stream.
+type StreamOrderField struct {
+	// Value extracts the ordering value from the given Stream.
+	Value    func(*Stream) (ent.Value, error)
+	column   string // field or computed.
+	toTerm   func(...sql.OrderTermOption) stream.OrderOption
+	toCursor func(*Stream) Cursor
+}
+
+// StreamOrder defines the ordering of Stream.
+type StreamOrder struct {
+	Direction OrderDirection    `json:"direction"`
+	Field     *StreamOrderField `json:"field"`
+}
+
+// DefaultStreamOrder is the default ordering of Stream.
+var DefaultStreamOrder = &StreamOrder{
+	Direction: entgql.OrderDirectionAsc,
+	Field: &StreamOrderField{
+		Value: func(s *Stream) (ent.Value, error) {
+			return s.ID, nil
+		},
+		column: stream.FieldID,
+		toTerm: stream.ByID,
+		toCursor: func(s *Stream) Cursor {
+			return Cursor{ID: s.ID}
+		},
+	},
+}
+
+// ToEdge converts Stream into StreamEdge.
+func (s *Stream) ToEdge(order *StreamOrder) *StreamEdge {
+	if order == nil {
+		order = DefaultStreamOrder
+	}
+	return &StreamEdge{
+		Node:   s,
+		Cursor: order.Field.toCursor(s),
 	}
 }
 

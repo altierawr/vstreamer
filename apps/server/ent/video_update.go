@@ -12,7 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/altierawr/vstreamer/ent/library"
-	"github.com/altierawr/vstreamer/ent/playsession"
+	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/predicate"
 	"github.com/altierawr/vstreamer/ent/video"
 )
@@ -58,6 +58,21 @@ func (vu *VideoUpdate) SetNillableCreatedAt(t *time.Time) *VideoUpdate {
 	return vu
 }
 
+// AddPlaySessionMediaIDs adds the "play_session_medias" edge to the PlaySessionMedia entity by IDs.
+func (vu *VideoUpdate) AddPlaySessionMediaIDs(ids ...int) *VideoUpdate {
+	vu.mutation.AddPlaySessionMediaIDs(ids...)
+	return vu
+}
+
+// AddPlaySessionMedias adds the "play_session_medias" edges to the PlaySessionMedia entity.
+func (vu *VideoUpdate) AddPlaySessionMedias(p ...*PlaySessionMedia) *VideoUpdate {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return vu.AddPlaySessionMediaIDs(ids...)
+}
+
 // SetLibraryID sets the "library" edge to the Library entity by ID.
 func (vu *VideoUpdate) SetLibraryID(id int) *VideoUpdate {
 	vu.mutation.SetLibraryID(id)
@@ -77,51 +92,36 @@ func (vu *VideoUpdate) SetLibrary(l *Library) *VideoUpdate {
 	return vu.SetLibraryID(l.ID)
 }
 
-// AddPlaySessionIDs adds the "play_sessions" edge to the PlaySession entity by IDs.
-func (vu *VideoUpdate) AddPlaySessionIDs(ids ...int) *VideoUpdate {
-	vu.mutation.AddPlaySessionIDs(ids...)
+// Mutation returns the VideoMutation object of the builder.
+func (vu *VideoUpdate) Mutation() *VideoMutation {
+	return vu.mutation
+}
+
+// ClearPlaySessionMedias clears all "play_session_medias" edges to the PlaySessionMedia entity.
+func (vu *VideoUpdate) ClearPlaySessionMedias() *VideoUpdate {
+	vu.mutation.ClearPlaySessionMedias()
 	return vu
 }
 
-// AddPlaySessions adds the "play_sessions" edges to the PlaySession entity.
-func (vu *VideoUpdate) AddPlaySessions(p ...*PlaySession) *VideoUpdate {
+// RemovePlaySessionMediaIDs removes the "play_session_medias" edge to PlaySessionMedia entities by IDs.
+func (vu *VideoUpdate) RemovePlaySessionMediaIDs(ids ...int) *VideoUpdate {
+	vu.mutation.RemovePlaySessionMediaIDs(ids...)
+	return vu
+}
+
+// RemovePlaySessionMedias removes "play_session_medias" edges to PlaySessionMedia entities.
+func (vu *VideoUpdate) RemovePlaySessionMedias(p ...*PlaySessionMedia) *VideoUpdate {
 	ids := make([]int, len(p))
 	for i := range p {
 		ids[i] = p[i].ID
 	}
-	return vu.AddPlaySessionIDs(ids...)
-}
-
-// Mutation returns the VideoMutation object of the builder.
-func (vu *VideoUpdate) Mutation() *VideoMutation {
-	return vu.mutation
+	return vu.RemovePlaySessionMediaIDs(ids...)
 }
 
 // ClearLibrary clears the "library" edge to the Library entity.
 func (vu *VideoUpdate) ClearLibrary() *VideoUpdate {
 	vu.mutation.ClearLibrary()
 	return vu
-}
-
-// ClearPlaySessions clears all "play_sessions" edges to the PlaySession entity.
-func (vu *VideoUpdate) ClearPlaySessions() *VideoUpdate {
-	vu.mutation.ClearPlaySessions()
-	return vu
-}
-
-// RemovePlaySessionIDs removes the "play_sessions" edge to PlaySession entities by IDs.
-func (vu *VideoUpdate) RemovePlaySessionIDs(ids ...int) *VideoUpdate {
-	vu.mutation.RemovePlaySessionIDs(ids...)
-	return vu
-}
-
-// RemovePlaySessions removes "play_sessions" edges to PlaySession entities.
-func (vu *VideoUpdate) RemovePlaySessions(p ...*PlaySession) *VideoUpdate {
-	ids := make([]int, len(p))
-	for i := range p {
-		ids[i] = p[i].ID
-	}
-	return vu.RemovePlaySessionIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -166,6 +166,51 @@ func (vu *VideoUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if value, ok := vu.mutation.CreatedAt(); ok {
 		_spec.SetField(video.FieldCreatedAt, field.TypeTime, value)
 	}
+	if vu.mutation.PlaySessionMediasCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   video.PlaySessionMediasTable,
+			Columns: []string{video.PlaySessionMediasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := vu.mutation.RemovedPlaySessionMediasIDs(); len(nodes) > 0 && !vu.mutation.PlaySessionMediasCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   video.PlaySessionMediasTable,
+			Columns: []string{video.PlaySessionMediasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := vu.mutation.PlaySessionMediasIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   video.PlaySessionMediasTable,
+			Columns: []string{video.PlaySessionMediasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if vu.mutation.LibraryCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -188,51 +233,6 @@ func (vu *VideoUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(library.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if vu.mutation.PlaySessionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   video.PlaySessionsTable,
-			Columns: []string{video.PlaySessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(playsession.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := vu.mutation.RemovedPlaySessionsIDs(); len(nodes) > 0 && !vu.mutation.PlaySessionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   video.PlaySessionsTable,
-			Columns: []string{video.PlaySessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(playsession.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := vu.mutation.PlaySessionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   video.PlaySessionsTable,
-			Columns: []string{video.PlaySessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(playsession.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -288,6 +288,21 @@ func (vuo *VideoUpdateOne) SetNillableCreatedAt(t *time.Time) *VideoUpdateOne {
 	return vuo
 }
 
+// AddPlaySessionMediaIDs adds the "play_session_medias" edge to the PlaySessionMedia entity by IDs.
+func (vuo *VideoUpdateOne) AddPlaySessionMediaIDs(ids ...int) *VideoUpdateOne {
+	vuo.mutation.AddPlaySessionMediaIDs(ids...)
+	return vuo
+}
+
+// AddPlaySessionMedias adds the "play_session_medias" edges to the PlaySessionMedia entity.
+func (vuo *VideoUpdateOne) AddPlaySessionMedias(p ...*PlaySessionMedia) *VideoUpdateOne {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return vuo.AddPlaySessionMediaIDs(ids...)
+}
+
 // SetLibraryID sets the "library" edge to the Library entity by ID.
 func (vuo *VideoUpdateOne) SetLibraryID(id int) *VideoUpdateOne {
 	vuo.mutation.SetLibraryID(id)
@@ -307,51 +322,36 @@ func (vuo *VideoUpdateOne) SetLibrary(l *Library) *VideoUpdateOne {
 	return vuo.SetLibraryID(l.ID)
 }
 
-// AddPlaySessionIDs adds the "play_sessions" edge to the PlaySession entity by IDs.
-func (vuo *VideoUpdateOne) AddPlaySessionIDs(ids ...int) *VideoUpdateOne {
-	vuo.mutation.AddPlaySessionIDs(ids...)
+// Mutation returns the VideoMutation object of the builder.
+func (vuo *VideoUpdateOne) Mutation() *VideoMutation {
+	return vuo.mutation
+}
+
+// ClearPlaySessionMedias clears all "play_session_medias" edges to the PlaySessionMedia entity.
+func (vuo *VideoUpdateOne) ClearPlaySessionMedias() *VideoUpdateOne {
+	vuo.mutation.ClearPlaySessionMedias()
 	return vuo
 }
 
-// AddPlaySessions adds the "play_sessions" edges to the PlaySession entity.
-func (vuo *VideoUpdateOne) AddPlaySessions(p ...*PlaySession) *VideoUpdateOne {
+// RemovePlaySessionMediaIDs removes the "play_session_medias" edge to PlaySessionMedia entities by IDs.
+func (vuo *VideoUpdateOne) RemovePlaySessionMediaIDs(ids ...int) *VideoUpdateOne {
+	vuo.mutation.RemovePlaySessionMediaIDs(ids...)
+	return vuo
+}
+
+// RemovePlaySessionMedias removes "play_session_medias" edges to PlaySessionMedia entities.
+func (vuo *VideoUpdateOne) RemovePlaySessionMedias(p ...*PlaySessionMedia) *VideoUpdateOne {
 	ids := make([]int, len(p))
 	for i := range p {
 		ids[i] = p[i].ID
 	}
-	return vuo.AddPlaySessionIDs(ids...)
-}
-
-// Mutation returns the VideoMutation object of the builder.
-func (vuo *VideoUpdateOne) Mutation() *VideoMutation {
-	return vuo.mutation
+	return vuo.RemovePlaySessionMediaIDs(ids...)
 }
 
 // ClearLibrary clears the "library" edge to the Library entity.
 func (vuo *VideoUpdateOne) ClearLibrary() *VideoUpdateOne {
 	vuo.mutation.ClearLibrary()
 	return vuo
-}
-
-// ClearPlaySessions clears all "play_sessions" edges to the PlaySession entity.
-func (vuo *VideoUpdateOne) ClearPlaySessions() *VideoUpdateOne {
-	vuo.mutation.ClearPlaySessions()
-	return vuo
-}
-
-// RemovePlaySessionIDs removes the "play_sessions" edge to PlaySession entities by IDs.
-func (vuo *VideoUpdateOne) RemovePlaySessionIDs(ids ...int) *VideoUpdateOne {
-	vuo.mutation.RemovePlaySessionIDs(ids...)
-	return vuo
-}
-
-// RemovePlaySessions removes "play_sessions" edges to PlaySession entities.
-func (vuo *VideoUpdateOne) RemovePlaySessions(p ...*PlaySession) *VideoUpdateOne {
-	ids := make([]int, len(p))
-	for i := range p {
-		ids[i] = p[i].ID
-	}
-	return vuo.RemovePlaySessionIDs(ids...)
 }
 
 // Where appends a list predicates to the VideoUpdate builder.
@@ -426,6 +426,51 @@ func (vuo *VideoUpdateOne) sqlSave(ctx context.Context) (_node *Video, err error
 	if value, ok := vuo.mutation.CreatedAt(); ok {
 		_spec.SetField(video.FieldCreatedAt, field.TypeTime, value)
 	}
+	if vuo.mutation.PlaySessionMediasCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   video.PlaySessionMediasTable,
+			Columns: []string{video.PlaySessionMediasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := vuo.mutation.RemovedPlaySessionMediasIDs(); len(nodes) > 0 && !vuo.mutation.PlaySessionMediasCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   video.PlaySessionMediasTable,
+			Columns: []string{video.PlaySessionMediasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := vuo.mutation.PlaySessionMediasIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   video.PlaySessionMediasTable,
+			Columns: []string{video.PlaySessionMediasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if vuo.mutation.LibraryCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -448,51 +493,6 @@ func (vuo *VideoUpdateOne) sqlSave(ctx context.Context) (_node *Video, err error
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(library.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if vuo.mutation.PlaySessionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   video.PlaySessionsTable,
-			Columns: []string{video.PlaySessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(playsession.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := vuo.mutation.RemovedPlaySessionsIDs(); len(nodes) > 0 && !vuo.mutation.PlaySessionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   video.PlaySessionsTable,
-			Columns: []string{video.PlaySessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(playsession.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := vuo.mutation.PlaySessionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   video.PlaySessionsTable,
-			Columns: []string{video.PlaySessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(playsession.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

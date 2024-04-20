@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/altierawr/vstreamer/ent/library"
-	"github.com/altierawr/vstreamer/ent/playsession"
+	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/video"
 )
 
@@ -42,6 +42,21 @@ func (vc *VideoCreate) SetNillableCreatedAt(t *time.Time) *VideoCreate {
 	return vc
 }
 
+// AddPlaySessionMediaIDs adds the "play_session_medias" edge to the PlaySessionMedia entity by IDs.
+func (vc *VideoCreate) AddPlaySessionMediaIDs(ids ...int) *VideoCreate {
+	vc.mutation.AddPlaySessionMediaIDs(ids...)
+	return vc
+}
+
+// AddPlaySessionMedias adds the "play_session_medias" edges to the PlaySessionMedia entity.
+func (vc *VideoCreate) AddPlaySessionMedias(p ...*PlaySessionMedia) *VideoCreate {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return vc.AddPlaySessionMediaIDs(ids...)
+}
+
 // SetLibraryID sets the "library" edge to the Library entity by ID.
 func (vc *VideoCreate) SetLibraryID(id int) *VideoCreate {
 	vc.mutation.SetLibraryID(id)
@@ -59,21 +74,6 @@ func (vc *VideoCreate) SetNillableLibraryID(id *int) *VideoCreate {
 // SetLibrary sets the "library" edge to the Library entity.
 func (vc *VideoCreate) SetLibrary(l *Library) *VideoCreate {
 	return vc.SetLibraryID(l.ID)
-}
-
-// AddPlaySessionIDs adds the "play_sessions" edge to the PlaySession entity by IDs.
-func (vc *VideoCreate) AddPlaySessionIDs(ids ...int) *VideoCreate {
-	vc.mutation.AddPlaySessionIDs(ids...)
-	return vc
-}
-
-// AddPlaySessions adds the "play_sessions" edges to the PlaySession entity.
-func (vc *VideoCreate) AddPlaySessions(p ...*PlaySession) *VideoCreate {
-	ids := make([]int, len(p))
-	for i := range p {
-		ids[i] = p[i].ID
-	}
-	return vc.AddPlaySessionIDs(ids...)
 }
 
 // Mutation returns the VideoMutation object of the builder.
@@ -159,6 +159,22 @@ func (vc *VideoCreate) createSpec() (*Video, *sqlgraph.CreateSpec) {
 		_spec.SetField(video.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
 	}
+	if nodes := vc.mutation.PlaySessionMediasIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   video.PlaySessionMediasTable,
+			Columns: []string{video.PlaySessionMediasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	if nodes := vc.mutation.LibraryIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -174,22 +190,6 @@ func (vc *VideoCreate) createSpec() (*Video, *sqlgraph.CreateSpec) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		_node.library_videos = &nodes[0]
-		_spec.Edges = append(_spec.Edges, edge)
-	}
-	if nodes := vc.mutation.PlaySessionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   video.PlaySessionsTable,
-			Columns: []string{video.PlaySessionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(playsession.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec

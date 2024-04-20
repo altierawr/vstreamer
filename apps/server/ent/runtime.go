@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/altierawr/vstreamer/ent/library"
+	"github.com/altierawr/vstreamer/ent/playbackclient"
+	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/schema"
 	"github.com/altierawr/vstreamer/ent/video"
 )
@@ -20,6 +22,24 @@ func init() {
 	libraryDescCreatedAt := libraryFields[1].Descriptor()
 	// library.DefaultCreatedAt holds the default value on creation for the created_at field.
 	library.DefaultCreatedAt = libraryDescCreatedAt.Default.(func() time.Time)
+	playsessionFields := schema.PlaySession{}.Fields()
+	_ = playsessionFields
+	playsessionmediaFields := schema.PlaySessionMedia{}.Fields()
+	_ = playsessionmediaFields
+	// playsessionmediaDescVideoCodecs is the schema descriptor for video_codecs field.
+	playsessionmediaDescVideoCodecs := playsessionmediaFields[0].Descriptor()
+	// playsessionmedia.DefaultVideoCodecs holds the default value on creation for the video_codecs field.
+	playsessionmedia.DefaultVideoCodecs = playsessionmediaDescVideoCodecs.Default.([]string)
+	// playsessionmediaDescResolutions is the schema descriptor for resolutions field.
+	playsessionmediaDescResolutions := playsessionmediaFields[1].Descriptor()
+	// playsessionmedia.DefaultResolutions holds the default value on creation for the resolutions field.
+	playsessionmedia.DefaultResolutions = playsessionmediaDescResolutions.Default.([]string)
+	playbackclientFields := schema.PlaybackClient{}.Fields()
+	_ = playbackclientFields
+	// playbackclientDescIsBuffered is the schema descriptor for is_buffered field.
+	playbackclientDescIsBuffered := playbackclientFields[0].Descriptor()
+	// playbackclient.DefaultIsBuffered holds the default value on creation for the is_buffered field.
+	playbackclient.DefaultIsBuffered = playbackclientDescIsBuffered.Default.(bool)
 	videoFields := schema.Video{}.Fields()
 	_ = videoFields
 	// videoDescCreatedAt is the schema descriptor for created_at field.
