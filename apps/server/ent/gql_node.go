@@ -20,6 +20,7 @@ import (
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/video"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/sync/semaphore"
 )
@@ -63,6 +64,11 @@ var videoImplementors = []string{"Video", "Node"}
 
 // IsNode implements the Node interface check for GQLGen.
 func (*Video) IsNode() {}
+
+var videocodecImplementors = []string{"VideoCodec", "Node"}
+
+// IsNode implements the Node interface check for GQLGen.
+func (*VideoCodec) IsNode() {}
 
 var errNodeInvalidID = &NotFoundError{"node"}
 
@@ -181,6 +187,15 @@ func (c *Client) noder(ctx context.Context, table string, id int) (Noder, error)
 			Where(video.ID(id))
 		if fc := graphql.GetFieldContext(ctx); fc != nil {
 			if err := query.collectField(ctx, true, graphql.GetOperationContext(ctx), fc.Field, nil, videoImplementors...); err != nil {
+				return nil, err
+			}
+		}
+		return query.Only(ctx)
+	case videocodec.Table:
+		query := c.VideoCodec.Query().
+			Where(videocodec.ID(id))
+		if fc := graphql.GetFieldContext(ctx); fc != nil {
+			if err := query.collectField(ctx, true, graphql.GetOperationContext(ctx), fc.Field, nil, videocodecImplementors...); err != nil {
 				return nil, err
 			}
 		}
@@ -358,6 +373,22 @@ func (c *Client) noders(ctx context.Context, table string, ids []int) ([]Noder, 
 		query := c.Video.Query().
 			Where(video.IDIn(ids...))
 		query, err := query.CollectFields(ctx, videoImplementors...)
+		if err != nil {
+			return nil, err
+		}
+		nodes, err := query.All(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, node := range nodes {
+			for _, noder := range idmap[node.ID] {
+				*noder = node
+			}
+		}
+	case videocodec.Table:
+		query := c.VideoCodec.Query().
+			Where(videocodec.IDIn(ids...))
+		query, err := query.CollectFields(ctx, videocodecImplementors...)
 		if err != nil {
 			return nil, err
 		}

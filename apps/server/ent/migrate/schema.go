@@ -59,7 +59,6 @@ var (
 	// PlaySessionMediaColumns holds the columns for the "play_session_media" table.
 	PlaySessionMediaColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "video_codecs", Type: field.TypeJSON},
 		{Name: "resolutions", Type: field.TypeJSON},
 		{Name: "play_session_media", Type: field.TypeInt, Unique: true},
 		{Name: "video_play_session_medias", Type: field.TypeInt, Nullable: true},
@@ -72,13 +71,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "play_session_media_play_sessions_media",
-				Columns:    []*schema.Column{PlaySessionMediaColumns[3]},
+				Columns:    []*schema.Column{PlaySessionMediaColumns[2]},
 				RefColumns: []*schema.Column{PlaySessionsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "play_session_media_videos_play_session_medias",
-				Columns:    []*schema.Column{PlaySessionMediaColumns[4]},
+				Columns:    []*schema.Column{PlaySessionMediaColumns[3]},
 				RefColumns: []*schema.Column{VideosColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -143,6 +142,28 @@ var (
 			},
 		},
 	}
+	// VideoCodecsColumns holds the columns for the "video_codecs" table.
+	VideoCodecsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString},
+		{Name: "mime", Type: field.TypeString},
+		{Name: "dynamic_range", Type: field.TypeEnum, Enums: []string{"sdr", "hdr"}},
+		{Name: "play_session_media_video_codecs", Type: field.TypeInt, Nullable: true},
+	}
+	// VideoCodecsTable holds the schema information for the "video_codecs" table.
+	VideoCodecsTable = &schema.Table{
+		Name:       "video_codecs",
+		Columns:    VideoCodecsColumns,
+		PrimaryKey: []*schema.Column{VideoCodecsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "video_codecs_play_session_media_video_codecs",
+				Columns:    []*schema.Column{VideoCodecsColumns[4]},
+				RefColumns: []*schema.Column{PlaySessionMediaColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		AudioTracksTable,
@@ -152,6 +173,7 @@ var (
 		PlaybackClientsTable,
 		StreamsTable,
 		VideosTable,
+		VideoCodecsTable,
 	}
 )
 
@@ -161,4 +183,5 @@ func init() {
 	PlaySessionMediaTable.ForeignKeys[1].RefTable = VideosTable
 	PlaybackClientsTable.ForeignKeys[0].RefTable = PlaySessionsTable
 	VideosTable.ForeignKeys[0].RefTable = LibrariesTable
+	VideoCodecsTable.ForeignKeys[0].RefTable = PlaySessionMediaTable
 }

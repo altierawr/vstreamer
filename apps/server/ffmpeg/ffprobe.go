@@ -14,24 +14,30 @@ type ProbeContainer struct {
 }
 
 type ProbeStream struct {
-	Index         int               `json:"index"`
-	CodecName     string            `json:"codec_name"`
-	CodecLongName string            `json:"codec_long_name"`
-	CodecTag      string            `json:"codec_tag"`
-	Profile       string            `json:"profile"`
-	Level         int               `json:"level"`
-	Channels      int               `json:"channels"`
-	ChannelLayout string            `json:"channel_layout"`
-	CodecType     string            `json:"codec_type"`
-	BitRate       string            `json:"bit_rate"`
-	Width         int               `json:"width"`
-	Height        int               `json:"height"`
-	Extradata     string            `json:"extradata"`
-	Tags          map[string]string `json:"tags"`
-	Disposition   map[string]int    `json:"disposition"`
-	TimeBase      string            `json:"time_base"`
-	DurationTs    int               `json:"duration_ts"`
-	RFrameRate    string            `json:"r_frame_rate"`
+	Index          int               `json:"index"`
+	CodecName      string            `json:"codec_name"`
+	CodecLongName  string            `json:"codec_long_name"`
+	CodecType      string            `json:"codec_type"`
+	CodecTag       string            `json:"codec_tag"`
+	ClosedCaptions int               `json:"closed_captions"`
+	PixFmt         string            `json:"pix_fmt"`
+	ColorRange     string            `json:"color_range"`
+	ColorSpace     string            `json:"color_space"`
+	ColorTransfer  string            `json:"color_transfer"`
+	ColorPrimaries string            `json:"color_primaries"`
+	Profile        string            `json:"profile"`
+	Level          int               `json:"level"`
+	Channels       int               `json:"channels"`
+	ChannelLayout  string            `json:"channel_layout"`
+	BitRate        string            `json:"bit_rate"`
+	Width          int               `json:"width"`
+	Height         int               `json:"height"`
+	Extradata      string            `json:"extradata"`
+	Tags           map[string]string `json:"tags"`
+	Disposition    map[string]int    `json:"disposition"`
+	TimeBase       string            `json:"time_base"`
+	DurationTs     int               `json:"duration_ts"`
+	RFrameRate     string            `json:"r_frame_rate"`
 }
 
 type ProbeFormat struct {

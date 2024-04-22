@@ -26,12 +26,8 @@ func init() {
 	_ = playsessionFields
 	playsessionmediaFields := schema.PlaySessionMedia{}.Fields()
 	_ = playsessionmediaFields
-	// playsessionmediaDescVideoCodecs is the schema descriptor for video_codecs field.
-	playsessionmediaDescVideoCodecs := playsessionmediaFields[0].Descriptor()
-	// playsessionmedia.DefaultVideoCodecs holds the default value on creation for the video_codecs field.
-	playsessionmedia.DefaultVideoCodecs = playsessionmediaDescVideoCodecs.Default.([]string)
 	// playsessionmediaDescResolutions is the schema descriptor for resolutions field.
-	playsessionmediaDescResolutions := playsessionmediaFields[1].Descriptor()
+	playsessionmediaDescResolutions := playsessionmediaFields[0].Descriptor()
 	// playsessionmedia.DefaultResolutions holds the default value on creation for the resolutions field.
 	playsessionmedia.DefaultResolutions = playsessionmediaDescResolutions.Default.([]string)
 	playbackclientFields := schema.PlaybackClient{}.Fields()

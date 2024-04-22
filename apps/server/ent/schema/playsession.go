@@ -1,7 +1,9 @@
 package schema
 
 import (
+	"entgo.io/contrib/entgql"
 	"entgo.io/ent"
+	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 )
@@ -28,5 +30,12 @@ func (PlaySession) Edges() []ent.Edge {
 		edge.To("clients", PlaybackClient.Type),
 		edge.To("media", PlaySessionMedia.Type).
 			Unique(),
+	}
+}
+
+func (PlaySession) Annotations() []schema.Annotation {
+	return []schema.Annotation{
+		entgql.QueryField(),
+		entgql.Mutations(entgql.MutationCreate(), entgql.MutationUpdate()),
 	}
 }

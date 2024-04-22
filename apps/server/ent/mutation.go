@@ -19,6 +19,7 @@ import (
 	"github.com/altierawr/vstreamer/ent/predicate"
 	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/video"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
 const (
@@ -37,6 +38,7 @@ const (
 	TypePlaybackClient   = "PlaybackClient"
 	TypeStream           = "Stream"
 	TypeVideo            = "Video"
+	TypeVideoCodec       = "VideoCodec"
 )
 
 // AudioTrackMutation represents an operation that mutates the AudioTrack nodes in the graph.
@@ -1792,8 +1794,6 @@ type PlaySessionMediaMutation struct {
 	op                  Op
 	typ                 string
 	id                  *int
-	video_codecs        *[]string
-	appendvideo_codecs  []string
 	resolutions         *[]string
 	appendresolutions   []string
 	clearedFields       map[string]struct{}
@@ -1804,6 +1804,9 @@ type PlaySessionMediaMutation struct {
 	clearedvideo        bool
 	session             *int
 	clearedsession      bool
+	video_codecs        map[int]struct{}
+	removedvideo_codecs map[int]struct{}
+	clearedvideo_codecs bool
 	done                bool
 	oldValue            func(context.Context) (*PlaySessionMedia, error)
 	predicates          []predicate.PlaySessionMedia
@@ -1905,57 +1908,6 @@ func (m *PlaySessionMediaMutation) IDs(ctx context.Context) ([]int, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
-}
-
-// SetVideoCodecs sets the "video_codecs" field.
-func (m *PlaySessionMediaMutation) SetVideoCodecs(s []string) {
-	m.video_codecs = &s
-	m.appendvideo_codecs = nil
-}
-
-// VideoCodecs returns the value of the "video_codecs" field in the mutation.
-func (m *PlaySessionMediaMutation) VideoCodecs() (r []string, exists bool) {
-	v := m.video_codecs
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldVideoCodecs returns the old "video_codecs" field's value of the PlaySessionMedia entity.
-// If the PlaySessionMedia object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *PlaySessionMediaMutation) OldVideoCodecs(ctx context.Context) (v []string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldVideoCodecs is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldVideoCodecs requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldVideoCodecs: %w", err)
-	}
-	return oldValue.VideoCodecs, nil
-}
-
-// AppendVideoCodecs adds s to the "video_codecs" field.
-func (m *PlaySessionMediaMutation) AppendVideoCodecs(s []string) {
-	m.appendvideo_codecs = append(m.appendvideo_codecs, s...)
-}
-
-// AppendedVideoCodecs returns the list of values that were appended to the "video_codecs" field in this mutation.
-func (m *PlaySessionMediaMutation) AppendedVideoCodecs() ([]string, bool) {
-	if len(m.appendvideo_codecs) == 0 {
-		return nil, false
-	}
-	return m.appendvideo_codecs, true
-}
-
-// ResetVideoCodecs resets all changes to the "video_codecs" field.
-func (m *PlaySessionMediaMutation) ResetVideoCodecs() {
-	m.video_codecs = nil
-	m.appendvideo_codecs = nil
 }
 
 // SetResolutions sets the "resolutions" field.
@@ -2141,6 +2093,60 @@ func (m *PlaySessionMediaMutation) ResetSession() {
 	m.clearedsession = false
 }
 
+// AddVideoCodecIDs adds the "video_codecs" edge to the VideoCodec entity by ids.
+func (m *PlaySessionMediaMutation) AddVideoCodecIDs(ids ...int) {
+	if m.video_codecs == nil {
+		m.video_codecs = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.video_codecs[ids[i]] = struct{}{}
+	}
+}
+
+// ClearVideoCodecs clears the "video_codecs" edge to the VideoCodec entity.
+func (m *PlaySessionMediaMutation) ClearVideoCodecs() {
+	m.clearedvideo_codecs = true
+}
+
+// VideoCodecsCleared reports if the "video_codecs" edge to the VideoCodec entity was cleared.
+func (m *PlaySessionMediaMutation) VideoCodecsCleared() bool {
+	return m.clearedvideo_codecs
+}
+
+// RemoveVideoCodecIDs removes the "video_codecs" edge to the VideoCodec entity by IDs.
+func (m *PlaySessionMediaMutation) RemoveVideoCodecIDs(ids ...int) {
+	if m.removedvideo_codecs == nil {
+		m.removedvideo_codecs = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.video_codecs, ids[i])
+		m.removedvideo_codecs[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedVideoCodecs returns the removed IDs of the "video_codecs" edge to the VideoCodec entity.
+func (m *PlaySessionMediaMutation) RemovedVideoCodecsIDs() (ids []int) {
+	for id := range m.removedvideo_codecs {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// VideoCodecsIDs returns the "video_codecs" edge IDs in the mutation.
+func (m *PlaySessionMediaMutation) VideoCodecsIDs() (ids []int) {
+	for id := range m.video_codecs {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetVideoCodecs resets all changes to the "video_codecs" edge.
+func (m *PlaySessionMediaMutation) ResetVideoCodecs() {
+	m.video_codecs = nil
+	m.clearedvideo_codecs = false
+	m.removedvideo_codecs = nil
+}
+
 // Where appends a list predicates to the PlaySessionMediaMutation builder.
 func (m *PlaySessionMediaMutation) Where(ps ...predicate.PlaySessionMedia) {
 	m.predicates = append(m.predicates, ps...)
@@ -2175,10 +2181,7 @@ func (m *PlaySessionMediaMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PlaySessionMediaMutation) Fields() []string {
-	fields := make([]string, 0, 2)
-	if m.video_codecs != nil {
-		fields = append(fields, playsessionmedia.FieldVideoCodecs)
-	}
+	fields := make([]string, 0, 1)
 	if m.resolutions != nil {
 		fields = append(fields, playsessionmedia.FieldResolutions)
 	}
@@ -2190,8 +2193,6 @@ func (m *PlaySessionMediaMutation) Fields() []string {
 // schema.
 func (m *PlaySessionMediaMutation) Field(name string) (ent.Value, bool) {
 	switch name {
-	case playsessionmedia.FieldVideoCodecs:
-		return m.VideoCodecs()
 	case playsessionmedia.FieldResolutions:
 		return m.Resolutions()
 	}
@@ -2203,8 +2204,6 @@ func (m *PlaySessionMediaMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *PlaySessionMediaMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
-	case playsessionmedia.FieldVideoCodecs:
-		return m.OldVideoCodecs(ctx)
 	case playsessionmedia.FieldResolutions:
 		return m.OldResolutions(ctx)
 	}
@@ -2216,13 +2215,6 @@ func (m *PlaySessionMediaMutation) OldField(ctx context.Context, name string) (e
 // type.
 func (m *PlaySessionMediaMutation) SetField(name string, value ent.Value) error {
 	switch name {
-	case playsessionmedia.FieldVideoCodecs:
-		v, ok := value.([]string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetVideoCodecs(v)
-		return nil
 	case playsessionmedia.FieldResolutions:
 		v, ok := value.([]string)
 		if !ok {
@@ -2279,9 +2271,6 @@ func (m *PlaySessionMediaMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *PlaySessionMediaMutation) ResetField(name string) error {
 	switch name {
-	case playsessionmedia.FieldVideoCodecs:
-		m.ResetVideoCodecs()
-		return nil
 	case playsessionmedia.FieldResolutions:
 		m.ResetResolutions()
 		return nil
@@ -2291,7 +2280,7 @@ func (m *PlaySessionMediaMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *PlaySessionMediaMutation) AddedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.audio_tracks != nil {
 		edges = append(edges, playsessionmedia.EdgeAudioTracks)
 	}
@@ -2300,6 +2289,9 @@ func (m *PlaySessionMediaMutation) AddedEdges() []string {
 	}
 	if m.session != nil {
 		edges = append(edges, playsessionmedia.EdgeSession)
+	}
+	if m.video_codecs != nil {
+		edges = append(edges, playsessionmedia.EdgeVideoCodecs)
 	}
 	return edges
 }
@@ -2322,15 +2314,24 @@ func (m *PlaySessionMediaMutation) AddedIDs(name string) []ent.Value {
 		if id := m.session; id != nil {
 			return []ent.Value{*id}
 		}
+	case playsessionmedia.EdgeVideoCodecs:
+		ids := make([]ent.Value, 0, len(m.video_codecs))
+		for id := range m.video_codecs {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *PlaySessionMediaMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.removedaudio_tracks != nil {
 		edges = append(edges, playsessionmedia.EdgeAudioTracks)
+	}
+	if m.removedvideo_codecs != nil {
+		edges = append(edges, playsessionmedia.EdgeVideoCodecs)
 	}
 	return edges
 }
@@ -2345,13 +2346,19 @@ func (m *PlaySessionMediaMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case playsessionmedia.EdgeVideoCodecs:
+		ids := make([]ent.Value, 0, len(m.removedvideo_codecs))
+		for id := range m.removedvideo_codecs {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *PlaySessionMediaMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.clearedaudio_tracks {
 		edges = append(edges, playsessionmedia.EdgeAudioTracks)
 	}
@@ -2360,6 +2367,9 @@ func (m *PlaySessionMediaMutation) ClearedEdges() []string {
 	}
 	if m.clearedsession {
 		edges = append(edges, playsessionmedia.EdgeSession)
+	}
+	if m.clearedvideo_codecs {
+		edges = append(edges, playsessionmedia.EdgeVideoCodecs)
 	}
 	return edges
 }
@@ -2374,6 +2384,8 @@ func (m *PlaySessionMediaMutation) EdgeCleared(name string) bool {
 		return m.clearedvideo
 	case playsessionmedia.EdgeSession:
 		return m.clearedsession
+	case playsessionmedia.EdgeVideoCodecs:
+		return m.clearedvideo_codecs
 	}
 	return false
 }
@@ -2404,6 +2416,9 @@ func (m *PlaySessionMediaMutation) ResetEdge(name string) error {
 		return nil
 	case playsessionmedia.EdgeSession:
 		m.ResetSession()
+		return nil
+	case playsessionmedia.EdgeVideoCodecs:
+		m.ResetVideoCodecs()
 		return nil
 	}
 	return fmt.Errorf("unknown PlaySessionMedia edge %s", name)
@@ -4138,4 +4153,505 @@ func (m *VideoMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Video edge %s", name)
+}
+
+// VideoCodecMutation represents an operation that mutates the VideoCodec nodes in the graph.
+type VideoCodecMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	name          *string
+	mime          *string
+	dynamic_range *videocodec.DynamicRange
+	clearedFields map[string]struct{}
+	media         *int
+	clearedmedia  bool
+	done          bool
+	oldValue      func(context.Context) (*VideoCodec, error)
+	predicates    []predicate.VideoCodec
+}
+
+var _ ent.Mutation = (*VideoCodecMutation)(nil)
+
+// videocodecOption allows management of the mutation configuration using functional options.
+type videocodecOption func(*VideoCodecMutation)
+
+// newVideoCodecMutation creates new mutation for the VideoCodec entity.
+func newVideoCodecMutation(c config, op Op, opts ...videocodecOption) *VideoCodecMutation {
+	m := &VideoCodecMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeVideoCodec,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withVideoCodecID sets the ID field of the mutation.
+func withVideoCodecID(id int) videocodecOption {
+	return func(m *VideoCodecMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *VideoCodec
+		)
+		m.oldValue = func(ctx context.Context) (*VideoCodec, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().VideoCodec.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withVideoCodec sets the old VideoCodec of the mutation.
+func withVideoCodec(node *VideoCodec) videocodecOption {
+	return func(m *VideoCodecMutation) {
+		m.oldValue = func(context.Context) (*VideoCodec, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m VideoCodecMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m VideoCodecMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *VideoCodecMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *VideoCodecMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().VideoCodec.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *VideoCodecMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *VideoCodecMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the VideoCodec entity.
+// If the VideoCodec object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VideoCodecMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *VideoCodecMutation) ResetName() {
+	m.name = nil
+}
+
+// SetMime sets the "mime" field.
+func (m *VideoCodecMutation) SetMime(s string) {
+	m.mime = &s
+}
+
+// Mime returns the value of the "mime" field in the mutation.
+func (m *VideoCodecMutation) Mime() (r string, exists bool) {
+	v := m.mime
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMime returns the old "mime" field's value of the VideoCodec entity.
+// If the VideoCodec object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VideoCodecMutation) OldMime(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMime is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMime requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMime: %w", err)
+	}
+	return oldValue.Mime, nil
+}
+
+// ResetMime resets all changes to the "mime" field.
+func (m *VideoCodecMutation) ResetMime() {
+	m.mime = nil
+}
+
+// SetDynamicRange sets the "dynamic_range" field.
+func (m *VideoCodecMutation) SetDynamicRange(vr videocodec.DynamicRange) {
+	m.dynamic_range = &vr
+}
+
+// DynamicRange returns the value of the "dynamic_range" field in the mutation.
+func (m *VideoCodecMutation) DynamicRange() (r videocodec.DynamicRange, exists bool) {
+	v := m.dynamic_range
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDynamicRange returns the old "dynamic_range" field's value of the VideoCodec entity.
+// If the VideoCodec object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VideoCodecMutation) OldDynamicRange(ctx context.Context) (v videocodec.DynamicRange, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDynamicRange is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDynamicRange requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDynamicRange: %w", err)
+	}
+	return oldValue.DynamicRange, nil
+}
+
+// ResetDynamicRange resets all changes to the "dynamic_range" field.
+func (m *VideoCodecMutation) ResetDynamicRange() {
+	m.dynamic_range = nil
+}
+
+// SetMediaID sets the "media" edge to the PlaySessionMedia entity by id.
+func (m *VideoCodecMutation) SetMediaID(id int) {
+	m.media = &id
+}
+
+// ClearMedia clears the "media" edge to the PlaySessionMedia entity.
+func (m *VideoCodecMutation) ClearMedia() {
+	m.clearedmedia = true
+}
+
+// MediaCleared reports if the "media" edge to the PlaySessionMedia entity was cleared.
+func (m *VideoCodecMutation) MediaCleared() bool {
+	return m.clearedmedia
+}
+
+// MediaID returns the "media" edge ID in the mutation.
+func (m *VideoCodecMutation) MediaID() (id int, exists bool) {
+	if m.media != nil {
+		return *m.media, true
+	}
+	return
+}
+
+// MediaIDs returns the "media" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// MediaID instead. It exists only for internal usage by the builders.
+func (m *VideoCodecMutation) MediaIDs() (ids []int) {
+	if id := m.media; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetMedia resets all changes to the "media" edge.
+func (m *VideoCodecMutation) ResetMedia() {
+	m.media = nil
+	m.clearedmedia = false
+}
+
+// Where appends a list predicates to the VideoCodecMutation builder.
+func (m *VideoCodecMutation) Where(ps ...predicate.VideoCodec) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the VideoCodecMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *VideoCodecMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.VideoCodec, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *VideoCodecMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *VideoCodecMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (VideoCodec).
+func (m *VideoCodecMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *VideoCodecMutation) Fields() []string {
+	fields := make([]string, 0, 3)
+	if m.name != nil {
+		fields = append(fields, videocodec.FieldName)
+	}
+	if m.mime != nil {
+		fields = append(fields, videocodec.FieldMime)
+	}
+	if m.dynamic_range != nil {
+		fields = append(fields, videocodec.FieldDynamicRange)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *VideoCodecMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case videocodec.FieldName:
+		return m.Name()
+	case videocodec.FieldMime:
+		return m.Mime()
+	case videocodec.FieldDynamicRange:
+		return m.DynamicRange()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *VideoCodecMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case videocodec.FieldName:
+		return m.OldName(ctx)
+	case videocodec.FieldMime:
+		return m.OldMime(ctx)
+	case videocodec.FieldDynamicRange:
+		return m.OldDynamicRange(ctx)
+	}
+	return nil, fmt.Errorf("unknown VideoCodec field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *VideoCodecMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case videocodec.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case videocodec.FieldMime:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMime(v)
+		return nil
+	case videocodec.FieldDynamicRange:
+		v, ok := value.(videocodec.DynamicRange)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDynamicRange(v)
+		return nil
+	}
+	return fmt.Errorf("unknown VideoCodec field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *VideoCodecMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *VideoCodecMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *VideoCodecMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown VideoCodec numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *VideoCodecMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *VideoCodecMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *VideoCodecMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown VideoCodec nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *VideoCodecMutation) ResetField(name string) error {
+	switch name {
+	case videocodec.FieldName:
+		m.ResetName()
+		return nil
+	case videocodec.FieldMime:
+		m.ResetMime()
+		return nil
+	case videocodec.FieldDynamicRange:
+		m.ResetDynamicRange()
+		return nil
+	}
+	return fmt.Errorf("unknown VideoCodec field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *VideoCodecMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.media != nil {
+		edges = append(edges, videocodec.EdgeMedia)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *VideoCodecMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case videocodec.EdgeMedia:
+		if id := m.media; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *VideoCodecMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *VideoCodecMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *VideoCodecMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedmedia {
+		edges = append(edges, videocodec.EdgeMedia)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *VideoCodecMutation) EdgeCleared(name string) bool {
+	switch name {
+	case videocodec.EdgeMedia:
+		return m.clearedmedia
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *VideoCodecMutation) ClearEdge(name string) error {
+	switch name {
+	case videocodec.EdgeMedia:
+		m.ClearMedia()
+		return nil
+	}
+	return fmt.Errorf("unknown VideoCodec unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *VideoCodecMutation) ResetEdge(name string) error {
+	switch name {
+	case videocodec.EdgeMedia:
+		m.ResetMedia()
+		return nil
+	}
+	return fmt.Errorf("unknown VideoCodec edge %s", name)
 }

@@ -4,6 +4,8 @@ package ent
 
 import (
 	"time"
+
+	"github.com/altierawr/vstreamer/ent/playsession"
 )
 
 // CreateLibraryInput represents a mutation input for creating libraries.
@@ -66,6 +68,88 @@ func (c *LibraryUpdate) SetInput(i UpdateLibraryInput) *LibraryUpdate {
 
 // SetInput applies the change-set in the UpdateLibraryInput on the LibraryUpdateOne builder.
 func (c *LibraryUpdateOne) SetInput(i UpdateLibraryInput) *LibraryUpdateOne {
+	i.Mutate(c.Mutation())
+	return c
+}
+
+// CreatePlaySessionInput represents a mutation input for creating playsessions.
+type CreatePlaySessionInput struct {
+	CurrentTime *int
+	State       *playsession.State
+	ClientIDs   []int
+	MediaID     *int
+}
+
+// Mutate applies the CreatePlaySessionInput on the PlaySessionMutation builder.
+func (i *CreatePlaySessionInput) Mutate(m *PlaySessionMutation) {
+	if v := i.CurrentTime; v != nil {
+		m.SetCurrentTime(*v)
+	}
+	if v := i.State; v != nil {
+		m.SetState(*v)
+	}
+	if v := i.ClientIDs; len(v) > 0 {
+		m.AddClientIDs(v...)
+	}
+	if v := i.MediaID; v != nil {
+		m.SetMediaID(*v)
+	}
+}
+
+// SetInput applies the change-set in the CreatePlaySessionInput on the PlaySessionCreate builder.
+func (c *PlaySessionCreate) SetInput(i CreatePlaySessionInput) *PlaySessionCreate {
+	i.Mutate(c.Mutation())
+	return c
+}
+
+// UpdatePlaySessionInput represents a mutation input for updating playsessions.
+type UpdatePlaySessionInput struct {
+	ClearCurrentTime bool
+	CurrentTime      *int
+	State            *playsession.State
+	ClearClients     bool
+	AddClientIDs     []int
+	RemoveClientIDs  []int
+	ClearMedia       bool
+	MediaID          *int
+}
+
+// Mutate applies the UpdatePlaySessionInput on the PlaySessionMutation builder.
+func (i *UpdatePlaySessionInput) Mutate(m *PlaySessionMutation) {
+	if i.ClearCurrentTime {
+		m.ClearCurrentTime()
+	}
+	if v := i.CurrentTime; v != nil {
+		m.SetCurrentTime(*v)
+	}
+	if v := i.State; v != nil {
+		m.SetState(*v)
+	}
+	if i.ClearClients {
+		m.ClearClients()
+	}
+	if v := i.AddClientIDs; len(v) > 0 {
+		m.AddClientIDs(v...)
+	}
+	if v := i.RemoveClientIDs; len(v) > 0 {
+		m.RemoveClientIDs(v...)
+	}
+	if i.ClearMedia {
+		m.ClearMedia()
+	}
+	if v := i.MediaID; v != nil {
+		m.SetMediaID(*v)
+	}
+}
+
+// SetInput applies the change-set in the UpdatePlaySessionInput on the PlaySessionUpdate builder.
+func (c *PlaySessionUpdate) SetInput(i UpdatePlaySessionInput) *PlaySessionUpdate {
+	i.Mutate(c.Mutation())
+	return c
+}
+
+// SetInput applies the change-set in the UpdatePlaySessionInput on the PlaySessionUpdateOne builder.
+func (c *PlaySessionUpdateOne) SetInput(i UpdatePlaySessionInput) *PlaySessionUpdateOne {
 	i.Mutate(c.Mutation())
 	return c
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/video"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
@@ -1841,5 +1842,254 @@ func (v *Video) ToEdge(order *VideoOrder) *VideoEdge {
 	return &VideoEdge{
 		Node:   v,
 		Cursor: order.Field.toCursor(v),
+	}
+}
+
+// VideoCodecEdge is the edge representation of VideoCodec.
+type VideoCodecEdge struct {
+	Node   *VideoCodec `json:"node"`
+	Cursor Cursor      `json:"cursor"`
+}
+
+// VideoCodecConnection is the connection containing edges to VideoCodec.
+type VideoCodecConnection struct {
+	Edges      []*VideoCodecEdge `json:"edges"`
+	PageInfo   PageInfo          `json:"pageInfo"`
+	TotalCount int               `json:"totalCount"`
+}
+
+func (c *VideoCodecConnection) build(nodes []*VideoCodec, pager *videocodecPager, after *Cursor, first *int, before *Cursor, last *int) {
+	c.PageInfo.HasNextPage = before != nil
+	c.PageInfo.HasPreviousPage = after != nil
+	if first != nil && *first+1 == len(nodes) {
+		c.PageInfo.HasNextPage = true
+		nodes = nodes[:len(nodes)-1]
+	} else if last != nil && *last+1 == len(nodes) {
+		c.PageInfo.HasPreviousPage = true
+		nodes = nodes[:len(nodes)-1]
+	}
+	var nodeAt func(int) *VideoCodec
+	if last != nil {
+		n := len(nodes) - 1
+		nodeAt = func(i int) *VideoCodec {
+			return nodes[n-i]
+		}
+	} else {
+		nodeAt = func(i int) *VideoCodec {
+			return nodes[i]
+		}
+	}
+	c.Edges = make([]*VideoCodecEdge, len(nodes))
+	for i := range nodes {
+		node := nodeAt(i)
+		c.Edges[i] = &VideoCodecEdge{
+			Node:   node,
+			Cursor: pager.toCursor(node),
+		}
+	}
+	if l := len(c.Edges); l > 0 {
+		c.PageInfo.StartCursor = &c.Edges[0].Cursor
+		c.PageInfo.EndCursor = &c.Edges[l-1].Cursor
+	}
+	if c.TotalCount == 0 {
+		c.TotalCount = len(nodes)
+	}
+}
+
+// VideoCodecPaginateOption enables pagination customization.
+type VideoCodecPaginateOption func(*videocodecPager) error
+
+// WithVideoCodecOrder configures pagination ordering.
+func WithVideoCodecOrder(order *VideoCodecOrder) VideoCodecPaginateOption {
+	if order == nil {
+		order = DefaultVideoCodecOrder
+	}
+	o := *order
+	return func(pager *videocodecPager) error {
+		if err := o.Direction.Validate(); err != nil {
+			return err
+		}
+		if o.Field == nil {
+			o.Field = DefaultVideoCodecOrder.Field
+		}
+		pager.order = &o
+		return nil
+	}
+}
+
+// WithVideoCodecFilter configures pagination filter.
+func WithVideoCodecFilter(filter func(*VideoCodecQuery) (*VideoCodecQuery, error)) VideoCodecPaginateOption {
+	return func(pager *videocodecPager) error {
+		if filter == nil {
+			return errors.New("VideoCodecQuery filter cannot be nil")
+		}
+		pager.filter = filter
+		return nil
+	}
+}
+
+type videocodecPager struct {
+	reverse bool
+	order   *VideoCodecOrder
+	filter  func(*VideoCodecQuery) (*VideoCodecQuery, error)
+}
+
+func newVideoCodecPager(opts []VideoCodecPaginateOption, reverse bool) (*videocodecPager, error) {
+	pager := &videocodecPager{reverse: reverse}
+	for _, opt := range opts {
+		if err := opt(pager); err != nil {
+			return nil, err
+		}
+	}
+	if pager.order == nil {
+		pager.order = DefaultVideoCodecOrder
+	}
+	return pager, nil
+}
+
+func (p *videocodecPager) applyFilter(query *VideoCodecQuery) (*VideoCodecQuery, error) {
+	if p.filter != nil {
+		return p.filter(query)
+	}
+	return query, nil
+}
+
+func (p *videocodecPager) toCursor(vc *VideoCodec) Cursor {
+	return p.order.Field.toCursor(vc)
+}
+
+func (p *videocodecPager) applyCursors(query *VideoCodecQuery, after, before *Cursor) (*VideoCodecQuery, error) {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	for _, predicate := range entgql.CursorsPredicate(after, before, DefaultVideoCodecOrder.Field.column, p.order.Field.column, direction) {
+		query = query.Where(predicate)
+	}
+	return query, nil
+}
+
+func (p *videocodecPager) applyOrder(query *VideoCodecQuery) *VideoCodecQuery {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	query = query.Order(p.order.Field.toTerm(direction.OrderTermOption()))
+	if p.order.Field != DefaultVideoCodecOrder.Field {
+		query = query.Order(DefaultVideoCodecOrder.Field.toTerm(direction.OrderTermOption()))
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return query
+}
+
+func (p *videocodecPager) orderExpr(query *VideoCodecQuery) sql.Querier {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return sql.ExprFunc(func(b *sql.Builder) {
+		b.Ident(p.order.Field.column).Pad().WriteString(string(direction))
+		if p.order.Field != DefaultVideoCodecOrder.Field {
+			b.Comma().Ident(DefaultVideoCodecOrder.Field.column).Pad().WriteString(string(direction))
+		}
+	})
+}
+
+// Paginate executes the query and returns a relay based cursor connection to VideoCodec.
+func (vc *VideoCodecQuery) Paginate(
+	ctx context.Context, after *Cursor, first *int,
+	before *Cursor, last *int, opts ...VideoCodecPaginateOption,
+) (*VideoCodecConnection, error) {
+	if err := validateFirstLast(first, last); err != nil {
+		return nil, err
+	}
+	pager, err := newVideoCodecPager(opts, last != nil)
+	if err != nil {
+		return nil, err
+	}
+	if vc, err = pager.applyFilter(vc); err != nil {
+		return nil, err
+	}
+	conn := &VideoCodecConnection{Edges: []*VideoCodecEdge{}}
+	ignoredEdges := !hasCollectedField(ctx, edgesField)
+	if hasCollectedField(ctx, totalCountField) || hasCollectedField(ctx, pageInfoField) {
+		hasPagination := after != nil || first != nil || before != nil || last != nil
+		if hasPagination || ignoredEdges {
+			c := vc.Clone()
+			c.ctx.Fields = nil
+			if conn.TotalCount, err = c.Count(ctx); err != nil {
+				return nil, err
+			}
+			conn.PageInfo.HasNextPage = first != nil && conn.TotalCount > 0
+			conn.PageInfo.HasPreviousPage = last != nil && conn.TotalCount > 0
+		}
+	}
+	if ignoredEdges || (first != nil && *first == 0) || (last != nil && *last == 0) {
+		return conn, nil
+	}
+	if vc, err = pager.applyCursors(vc, after, before); err != nil {
+		return nil, err
+	}
+	limit := paginateLimit(first, last)
+	if limit != 0 {
+		vc.Limit(limit)
+	}
+	if field := collectedField(ctx, edgesField, nodeField); field != nil {
+		if err := vc.collectField(ctx, limit == 1, graphql.GetOperationContext(ctx), *field, []string{edgesField, nodeField}); err != nil {
+			return nil, err
+		}
+	}
+	vc = pager.applyOrder(vc)
+	nodes, err := vc.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	conn.build(nodes, pager, after, first, before, last)
+	return conn, nil
+}
+
+// VideoCodecOrderField defines the ordering field of VideoCodec.
+type VideoCodecOrderField struct {
+	// Value extracts the ordering value from the given VideoCodec.
+	Value    func(*VideoCodec) (ent.Value, error)
+	column   string // field or computed.
+	toTerm   func(...sql.OrderTermOption) videocodec.OrderOption
+	toCursor func(*VideoCodec) Cursor
+}
+
+// VideoCodecOrder defines the ordering of VideoCodec.
+type VideoCodecOrder struct {
+	Direction OrderDirection        `json:"direction"`
+	Field     *VideoCodecOrderField `json:"field"`
+}
+
+// DefaultVideoCodecOrder is the default ordering of VideoCodec.
+var DefaultVideoCodecOrder = &VideoCodecOrder{
+	Direction: entgql.OrderDirectionAsc,
+	Field: &VideoCodecOrderField{
+		Value: func(vc *VideoCodec) (ent.Value, error) {
+			return vc.ID, nil
+		},
+		column: videocodec.FieldID,
+		toTerm: videocodec.ByID,
+		toCursor: func(vc *VideoCodec) Cursor {
+			return Cursor{ID: vc.ID}
+		},
+	},
+}
+
+// ToEdge converts VideoCodec into VideoCodecEdge.
+func (vc *VideoCodec) ToEdge(order *VideoCodecOrder) *VideoCodecEdge {
+	if order == nil {
+		order = DefaultVideoCodecOrder
+	}
+	return &VideoCodecEdge{
+		Node:   vc,
+		Cursor: order.Field.toCursor(vc),
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/video"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
 // CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
@@ -341,11 +342,19 @@ func (psm *PlaySessionMediaQuery) collectField(ctx context.Context, oneNode bool
 				return err
 			}
 			psm.withSession = query
+
 		case "videoCodecs":
-			if _, ok := fieldSeen[playsessionmedia.FieldVideoCodecs]; !ok {
-				selectedFields = append(selectedFields, playsessionmedia.FieldVideoCodecs)
-				fieldSeen[playsessionmedia.FieldVideoCodecs] = struct{}{}
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&VideoCodecClient{config: psm.config}).Query()
+			)
+			if err := query.collectField(ctx, false, opCtx, field, path, mayAddCondition(satisfies, videocodecImplementors)...); err != nil {
+				return err
 			}
+			psm.WithNamedVideoCodecs(alias, func(wq *VideoCodecQuery) {
+				*wq = *query
+			})
 		case "resolutions":
 			if _, ok := fieldSeen[playsessionmedia.FieldResolutions]; !ok {
 				selectedFields = append(selectedFields, playsessionmedia.FieldResolutions)
@@ -638,6 +647,91 @@ type videoPaginateArgs struct {
 
 func newVideoPaginateArgs(rv map[string]any) *videoPaginateArgs {
 	args := &videoPaginateArgs{}
+	if rv == nil {
+		return args
+	}
+	if v := rv[firstField]; v != nil {
+		args.first = v.(*int)
+	}
+	if v := rv[lastField]; v != nil {
+		args.last = v.(*int)
+	}
+	if v := rv[afterField]; v != nil {
+		args.after = v.(*Cursor)
+	}
+	if v := rv[beforeField]; v != nil {
+		args.before = v.(*Cursor)
+	}
+	return args
+}
+
+// CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
+func (vc *VideoCodecQuery) CollectFields(ctx context.Context, satisfies ...string) (*VideoCodecQuery, error) {
+	fc := graphql.GetFieldContext(ctx)
+	if fc == nil {
+		return vc, nil
+	}
+	if err := vc.collectField(ctx, false, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+		return nil, err
+	}
+	return vc, nil
+}
+
+func (vc *VideoCodecQuery) collectField(ctx context.Context, oneNode bool, opCtx *graphql.OperationContext, collected graphql.CollectedField, path []string, satisfies ...string) error {
+	path = append([]string(nil), path...)
+	var (
+		unknownSeen    bool
+		fieldSeen      = make(map[string]struct{}, len(videocodec.Columns))
+		selectedFields = []string{videocodec.FieldID}
+	)
+	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
+		switch field.Name {
+
+		case "media":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&PlaySessionMediaClient{config: vc.config}).Query()
+			)
+			if err := query.collectField(ctx, oneNode, opCtx, field, path, mayAddCondition(satisfies, playsessionmediaImplementors)...); err != nil {
+				return err
+			}
+			vc.withMedia = query
+		case "name":
+			if _, ok := fieldSeen[videocodec.FieldName]; !ok {
+				selectedFields = append(selectedFields, videocodec.FieldName)
+				fieldSeen[videocodec.FieldName] = struct{}{}
+			}
+		case "mime":
+			if _, ok := fieldSeen[videocodec.FieldMime]; !ok {
+				selectedFields = append(selectedFields, videocodec.FieldMime)
+				fieldSeen[videocodec.FieldMime] = struct{}{}
+			}
+		case "dynamicRange":
+			if _, ok := fieldSeen[videocodec.FieldDynamicRange]; !ok {
+				selectedFields = append(selectedFields, videocodec.FieldDynamicRange)
+				fieldSeen[videocodec.FieldDynamicRange] = struct{}{}
+			}
+		case "id":
+		case "__typename":
+		default:
+			unknownSeen = true
+		}
+	}
+	if !unknownSeen {
+		vc.Select(selectedFields...)
+	}
+	return nil
+}
+
+type videocodecPaginateArgs struct {
+	first, last   *int
+	after, before *Cursor
+	opts          []VideoCodecPaginateOption
+}
+
+func newVideoCodecPaginateArgs(rv map[string]any) *videocodecPaginateArgs {
+	args := &videocodecPaginateArgs{}
 	if rv == nil {
 		return args
 	}

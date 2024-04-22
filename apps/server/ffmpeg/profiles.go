@@ -7,7 +7,8 @@ type TranscodeProfile struct {
 
 type VideoPreset struct {
 	Codec      string
-	FfmpegArgs string
+	Mime       string
+	FfmpegArgs []string
 }
 
 type AudioPreset struct {
@@ -15,15 +16,28 @@ type AudioPreset struct {
 	FfmpegArgs string
 }
 
-var TranscodingVideoCodecs = []VideoPreset{
-	{
-		Codec:      "av1",
-		FfmpegArgs: "",
-	},
-	{
-		Codec:      "vp9",
-		FfmpegArgs: "",
-	},
+var Av1HDRPreset = VideoPreset{
+	Codec:      "av1",
+	Mime:       "av01.0.19M.10",
+	FfmpegArgs: []string{},
+}
+
+var Av1SDRPreset = VideoPreset{
+	Codec:      "av1",
+	Mime:       "av01.0.19M.10",
+	FfmpegArgs: []string{},
+}
+
+var Vp9HDRPreset = VideoPreset{
+	Codec:      "vp9",
+	Mime:       "vp9",
+	FfmpegArgs: []string{},
+}
+
+var Vp9SDRPreset = VideoPreset{
+	Codec:      "vp9",
+	Mime:       "vp9",
+	FfmpegArgs: []string{},
 }
 
 var TranscodingAudioCodecs = []AudioPreset{

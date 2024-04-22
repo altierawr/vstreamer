@@ -22,6 +22,7 @@ import (
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/video"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
 // Client is the client that holds all ent builders.
@@ -43,6 +44,8 @@ type Client struct {
 	Stream *StreamClient
 	// Video is the client for interacting with the Video builders.
 	Video *VideoClient
+	// VideoCodec is the client for interacting with the VideoCodec builders.
+	VideoCodec *VideoCodecClient
 	// additional fields for node api
 	tables tables
 }
@@ -63,6 +66,7 @@ func (c *Client) init() {
 	c.PlaybackClient = NewPlaybackClientClient(c.config)
 	c.Stream = NewStreamClient(c.config)
 	c.Video = NewVideoClient(c.config)
+	c.VideoCodec = NewVideoCodecClient(c.config)
 }
 
 type (
@@ -162,6 +166,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		PlaybackClient:   NewPlaybackClientClient(cfg),
 		Stream:           NewStreamClient(cfg),
 		Video:            NewVideoClient(cfg),
+		VideoCodec:       NewVideoCodecClient(cfg),
 	}, nil
 }
 
@@ -188,6 +193,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		PlaybackClient:   NewPlaybackClientClient(cfg),
 		Stream:           NewStreamClient(cfg),
 		Video:            NewVideoClient(cfg),
+		VideoCodec:       NewVideoCodecClient(cfg),
 	}, nil
 }
 
@@ -218,7 +224,7 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AudioTrack, c.Library, c.PlaySession, c.PlaySessionMedia, c.PlaybackClient,
-		c.Stream, c.Video,
+		c.Stream, c.Video, c.VideoCodec,
 	} {
 		n.Use(hooks...)
 	}
@@ -229,7 +235,7 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AudioTrack, c.Library, c.PlaySession, c.PlaySessionMedia, c.PlaybackClient,
-		c.Stream, c.Video,
+		c.Stream, c.Video, c.VideoCodec,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -252,6 +258,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Stream.mutate(ctx, m)
 	case *VideoMutation:
 		return c.Video.mutate(ctx, m)
+	case *VideoCodecMutation:
+		return c.VideoCodec.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -876,6 +884,22 @@ func (c *PlaySessionMediaClient) QuerySession(psm *PlaySessionMedia) *PlaySessio
 	return query
 }
 
+// QueryVideoCodecs queries the video_codecs edge of a PlaySessionMedia.
+func (c *PlaySessionMediaClient) QueryVideoCodecs(psm *PlaySessionMedia) *VideoCodecQuery {
+	query := (&VideoCodecClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := psm.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(playsessionmedia.Table, playsessionmedia.FieldID, id),
+			sqlgraph.To(videocodec.Table, videocodec.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, playsessionmedia.VideoCodecsTable, playsessionmedia.VideoCodecsColumn),
+		)
+		fromV = sqlgraph.Neighbors(psm.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *PlaySessionMediaClient) Hooks() []Hook {
 	return c.hooks.PlaySessionMedia
@@ -1348,14 +1372,163 @@ func (c *VideoClient) mutate(ctx context.Context, m *VideoMutation) (Value, erro
 	}
 }
 
+// VideoCodecClient is a client for the VideoCodec schema.
+type VideoCodecClient struct {
+	config
+}
+
+// NewVideoCodecClient returns a client for the VideoCodec from the given config.
+func NewVideoCodecClient(c config) *VideoCodecClient {
+	return &VideoCodecClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `videocodec.Hooks(f(g(h())))`.
+func (c *VideoCodecClient) Use(hooks ...Hook) {
+	c.hooks.VideoCodec = append(c.hooks.VideoCodec, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `videocodec.Intercept(f(g(h())))`.
+func (c *VideoCodecClient) Intercept(interceptors ...Interceptor) {
+	c.inters.VideoCodec = append(c.inters.VideoCodec, interceptors...)
+}
+
+// Create returns a builder for creating a VideoCodec entity.
+func (c *VideoCodecClient) Create() *VideoCodecCreate {
+	mutation := newVideoCodecMutation(c.config, OpCreate)
+	return &VideoCodecCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of VideoCodec entities.
+func (c *VideoCodecClient) CreateBulk(builders ...*VideoCodecCreate) *VideoCodecCreateBulk {
+	return &VideoCodecCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *VideoCodecClient) MapCreateBulk(slice any, setFunc func(*VideoCodecCreate, int)) *VideoCodecCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &VideoCodecCreateBulk{err: fmt.Errorf("calling to VideoCodecClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*VideoCodecCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &VideoCodecCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for VideoCodec.
+func (c *VideoCodecClient) Update() *VideoCodecUpdate {
+	mutation := newVideoCodecMutation(c.config, OpUpdate)
+	return &VideoCodecUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *VideoCodecClient) UpdateOne(vc *VideoCodec) *VideoCodecUpdateOne {
+	mutation := newVideoCodecMutation(c.config, OpUpdateOne, withVideoCodec(vc))
+	return &VideoCodecUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *VideoCodecClient) UpdateOneID(id int) *VideoCodecUpdateOne {
+	mutation := newVideoCodecMutation(c.config, OpUpdateOne, withVideoCodecID(id))
+	return &VideoCodecUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for VideoCodec.
+func (c *VideoCodecClient) Delete() *VideoCodecDelete {
+	mutation := newVideoCodecMutation(c.config, OpDelete)
+	return &VideoCodecDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *VideoCodecClient) DeleteOne(vc *VideoCodec) *VideoCodecDeleteOne {
+	return c.DeleteOneID(vc.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *VideoCodecClient) DeleteOneID(id int) *VideoCodecDeleteOne {
+	builder := c.Delete().Where(videocodec.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &VideoCodecDeleteOne{builder}
+}
+
+// Query returns a query builder for VideoCodec.
+func (c *VideoCodecClient) Query() *VideoCodecQuery {
+	return &VideoCodecQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeVideoCodec},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a VideoCodec entity by its id.
+func (c *VideoCodecClient) Get(ctx context.Context, id int) (*VideoCodec, error) {
+	return c.Query().Where(videocodec.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *VideoCodecClient) GetX(ctx context.Context, id int) *VideoCodec {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryMedia queries the media edge of a VideoCodec.
+func (c *VideoCodecClient) QueryMedia(vc *VideoCodec) *PlaySessionMediaQuery {
+	query := (&PlaySessionMediaClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := vc.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(videocodec.Table, videocodec.FieldID, id),
+			sqlgraph.To(playsessionmedia.Table, playsessionmedia.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, videocodec.MediaTable, videocodec.MediaColumn),
+		)
+		fromV = sqlgraph.Neighbors(vc.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *VideoCodecClient) Hooks() []Hook {
+	return c.hooks.VideoCodec
+}
+
+// Interceptors returns the client interceptors.
+func (c *VideoCodecClient) Interceptors() []Interceptor {
+	return c.inters.VideoCodec
+}
+
+func (c *VideoCodecClient) mutate(ctx context.Context, m *VideoCodecMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&VideoCodecCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&VideoCodecUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&VideoCodecUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&VideoCodecDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown VideoCodec mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
 		AudioTrack, Library, PlaySession, PlaySessionMedia, PlaybackClient, Stream,
-		Video []ent.Hook
+		Video, VideoCodec []ent.Hook
 	}
 	inters struct {
 		AudioTrack, Library, PlaySession, PlaySessionMedia, PlaybackClient, Stream,
-		Video []ent.Interceptor
+		Video, VideoCodec []ent.Interceptor
 	}
 )

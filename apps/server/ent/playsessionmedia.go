@@ -19,8 +19,6 @@ type PlaySessionMedia struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID int `json:"id,omitempty"`
-	// VideoCodecs holds the value of the "video_codecs" field.
-	VideoCodecs []string `json:"video_codecs,omitempty"`
 	// Resolutions holds the value of the "resolutions" field.
 	Resolutions []string `json:"resolutions,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -39,13 +37,16 @@ type PlaySessionMediaEdges struct {
 	Video *Video `json:"video,omitempty"`
 	// Session holds the value of the session edge.
 	Session *PlaySession `json:"session,omitempty"`
+	// VideoCodecs holds the value of the video_codecs edge.
+	VideoCodecs []*VideoCodec `json:"video_codecs,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [3]bool
+	loadedTypes [4]bool
 	// totalCount holds the count of the edges above.
-	totalCount [3]map[string]int
+	totalCount [4]map[string]int
 
 	namedAudioTracks map[string][]*AudioTrack
+	namedVideoCodecs map[string][]*VideoCodec
 }
 
 // AudioTracksOrErr returns the AudioTracks value or an error if the edge
@@ -79,12 +80,21 @@ func (e PlaySessionMediaEdges) SessionOrErr() (*PlaySession, error) {
 	return nil, &NotLoadedError{edge: "session"}
 }
 
+// VideoCodecsOrErr returns the VideoCodecs value or an error if the edge
+// was not loaded in eager-loading.
+func (e PlaySessionMediaEdges) VideoCodecsOrErr() ([]*VideoCodec, error) {
+	if e.loadedTypes[3] {
+		return e.VideoCodecs, nil
+	}
+	return nil, &NotLoadedError{edge: "video_codecs"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*PlaySessionMedia) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case playsessionmedia.FieldVideoCodecs, playsessionmedia.FieldResolutions:
+		case playsessionmedia.FieldResolutions:
 			values[i] = new([]byte)
 		case playsessionmedia.FieldID:
 			values[i] = new(sql.NullInt64)
@@ -113,14 +123,6 @@ func (psm *PlaySessionMedia) assignValues(columns []string, values []any) error 
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
 			psm.ID = int(value.Int64)
-		case playsessionmedia.FieldVideoCodecs:
-			if value, ok := values[i].(*[]byte); !ok {
-				return fmt.Errorf("unexpected type %T for field video_codecs", values[i])
-			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &psm.VideoCodecs); err != nil {
-					return fmt.Errorf("unmarshal field video_codecs: %w", err)
-				}
-			}
 		case playsessionmedia.FieldResolutions:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field resolutions", values[i])
@@ -171,6 +173,11 @@ func (psm *PlaySessionMedia) QuerySession() *PlaySessionQuery {
 	return NewPlaySessionMediaClient(psm.config).QuerySession(psm)
 }
 
+// QueryVideoCodecs queries the "video_codecs" edge of the PlaySessionMedia entity.
+func (psm *PlaySessionMedia) QueryVideoCodecs() *VideoCodecQuery {
+	return NewPlaySessionMediaClient(psm.config).QueryVideoCodecs(psm)
+}
+
 // Update returns a builder for updating this PlaySessionMedia.
 // Note that you need to call PlaySessionMedia.Unwrap() before calling this method if this PlaySessionMedia
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -194,9 +201,6 @@ func (psm *PlaySessionMedia) String() string {
 	var builder strings.Builder
 	builder.WriteString("PlaySessionMedia(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", psm.ID))
-	builder.WriteString("video_codecs=")
-	builder.WriteString(fmt.Sprintf("%v", psm.VideoCodecs))
-	builder.WriteString(", ")
 	builder.WriteString("resolutions=")
 	builder.WriteString(fmt.Sprintf("%v", psm.Resolutions))
 	builder.WriteByte(')')
@@ -224,6 +228,30 @@ func (psm *PlaySessionMedia) appendNamedAudioTracks(name string, edges ...*Audio
 		psm.Edges.namedAudioTracks[name] = []*AudioTrack{}
 	} else {
 		psm.Edges.namedAudioTracks[name] = append(psm.Edges.namedAudioTracks[name], edges...)
+	}
+}
+
+// NamedVideoCodecs returns the VideoCodecs named value or an error if the edge was not
+// loaded in eager-loading with this name.
+func (psm *PlaySessionMedia) NamedVideoCodecs(name string) ([]*VideoCodec, error) {
+	if psm.Edges.namedVideoCodecs == nil {
+		return nil, &NotLoadedError{edge: name}
+	}
+	nodes, ok := psm.Edges.namedVideoCodecs[name]
+	if !ok {
+		return nil, &NotLoadedError{edge: name}
+	}
+	return nodes, nil
+}
+
+func (psm *PlaySessionMedia) appendNamedVideoCodecs(name string, edges ...*VideoCodec) {
+	if psm.Edges.namedVideoCodecs == nil {
+		psm.Edges.namedVideoCodecs = make(map[string][]*VideoCodec)
+	}
+	if len(edges) == 0 {
+		psm.Edges.namedVideoCodecs[name] = []*VideoCodec{}
+	} else {
+		psm.Edges.namedVideoCodecs[name] = append(psm.Edges.namedVideoCodecs[name], edges...)
 	}
 }
 

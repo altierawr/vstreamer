@@ -122,6 +122,29 @@ func HasSessionWith(preds ...predicate.PlaySession) predicate.PlaySessionMedia {
 	})
 }
 
+// HasVideoCodecs applies the HasEdge predicate on the "video_codecs" edge.
+func HasVideoCodecs() predicate.PlaySessionMedia {
+	return predicate.PlaySessionMedia(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, VideoCodecsTable, VideoCodecsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasVideoCodecsWith applies the HasEdge predicate on the "video_codecs" edge with a given conditions (other predicates).
+func HasVideoCodecsWith(preds ...predicate.VideoCodec) predicate.PlaySessionMedia {
+	return predicate.PlaySessionMedia(func(s *sql.Selector) {
+		step := newVideoCodecsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.PlaySessionMedia) predicate.PlaySessionMedia {
 	return predicate.PlaySessionMedia(sql.AndPredicates(predicates...))

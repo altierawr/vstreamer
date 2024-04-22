@@ -13,6 +13,7 @@ import (
 	"github.com/altierawr/vstreamer/ent/playsession"
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/video"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
 // PlaySessionMediaCreate is the builder for creating a PlaySessionMedia entity.
@@ -20,12 +21,6 @@ type PlaySessionMediaCreate struct {
 	config
 	mutation *PlaySessionMediaMutation
 	hooks    []Hook
-}
-
-// SetVideoCodecs sets the "video_codecs" field.
-func (psmc *PlaySessionMediaCreate) SetVideoCodecs(s []string) *PlaySessionMediaCreate {
-	psmc.mutation.SetVideoCodecs(s)
-	return psmc
 }
 
 // SetResolutions sets the "resolutions" field.
@@ -79,6 +74,21 @@ func (psmc *PlaySessionMediaCreate) SetSession(p *PlaySession) *PlaySessionMedia
 	return psmc.SetSessionID(p.ID)
 }
 
+// AddVideoCodecIDs adds the "video_codecs" edge to the VideoCodec entity by IDs.
+func (psmc *PlaySessionMediaCreate) AddVideoCodecIDs(ids ...int) *PlaySessionMediaCreate {
+	psmc.mutation.AddVideoCodecIDs(ids...)
+	return psmc
+}
+
+// AddVideoCodecs adds the "video_codecs" edges to the VideoCodec entity.
+func (psmc *PlaySessionMediaCreate) AddVideoCodecs(v ...*VideoCodec) *PlaySessionMediaCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return psmc.AddVideoCodecIDs(ids...)
+}
+
 // Mutation returns the PlaySessionMediaMutation object of the builder.
 func (psmc *PlaySessionMediaCreate) Mutation() *PlaySessionMediaMutation {
 	return psmc.mutation
@@ -114,10 +124,6 @@ func (psmc *PlaySessionMediaCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (psmc *PlaySessionMediaCreate) defaults() {
-	if _, ok := psmc.mutation.VideoCodecs(); !ok {
-		v := playsessionmedia.DefaultVideoCodecs
-		psmc.mutation.SetVideoCodecs(v)
-	}
 	if _, ok := psmc.mutation.Resolutions(); !ok {
 		v := playsessionmedia.DefaultResolutions
 		psmc.mutation.SetResolutions(v)
@@ -126,9 +132,6 @@ func (psmc *PlaySessionMediaCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (psmc *PlaySessionMediaCreate) check() error {
-	if _, ok := psmc.mutation.VideoCodecs(); !ok {
-		return &ValidationError{Name: "video_codecs", err: errors.New(`ent: missing required field "PlaySessionMedia.video_codecs"`)}
-	}
 	if _, ok := psmc.mutation.Resolutions(); !ok {
 		return &ValidationError{Name: "resolutions", err: errors.New(`ent: missing required field "PlaySessionMedia.resolutions"`)}
 	}
@@ -161,10 +164,6 @@ func (psmc *PlaySessionMediaCreate) createSpec() (*PlaySessionMedia, *sqlgraph.C
 		_node = &PlaySessionMedia{config: psmc.config}
 		_spec = sqlgraph.NewCreateSpec(playsessionmedia.Table, sqlgraph.NewFieldSpec(playsessionmedia.FieldID, field.TypeInt))
 	)
-	if value, ok := psmc.mutation.VideoCodecs(); ok {
-		_spec.SetField(playsessionmedia.FieldVideoCodecs, field.TypeJSON, value)
-		_node.VideoCodecs = value
-	}
 	if value, ok := psmc.mutation.Resolutions(); ok {
 		_spec.SetField(playsessionmedia.FieldResolutions, field.TypeJSON, value)
 		_node.Resolutions = value
@@ -217,6 +216,22 @@ func (psmc *PlaySessionMediaCreate) createSpec() (*PlaySessionMedia, *sqlgraph.C
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		_node.play_session_media = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := psmc.mutation.VideoCodecsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.VideoCodecsTable,
+			Columns: []string{playsessionmedia.VideoCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec

@@ -26,3 +26,6 @@ type Stream func(*sql.Selector)
 
 // Video is the predicate function for video builders.
 type Video func(*sql.Selector)
+
+// VideoCodec is the predicate function for videocodec builders.
+type VideoCodec func(*sql.Selector)

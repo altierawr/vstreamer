@@ -16,6 +16,7 @@ import (
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/predicate"
 	"github.com/altierawr/vstreamer/ent/video"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
 // PlaySessionMediaUpdate is the builder for updating PlaySessionMedia entities.
@@ -28,18 +29,6 @@ type PlaySessionMediaUpdate struct {
 // Where appends a list predicates to the PlaySessionMediaUpdate builder.
 func (psmu *PlaySessionMediaUpdate) Where(ps ...predicate.PlaySessionMedia) *PlaySessionMediaUpdate {
 	psmu.mutation.Where(ps...)
-	return psmu
-}
-
-// SetVideoCodecs sets the "video_codecs" field.
-func (psmu *PlaySessionMediaUpdate) SetVideoCodecs(s []string) *PlaySessionMediaUpdate {
-	psmu.mutation.SetVideoCodecs(s)
-	return psmu
-}
-
-// AppendVideoCodecs appends s to the "video_codecs" field.
-func (psmu *PlaySessionMediaUpdate) AppendVideoCodecs(s []string) *PlaySessionMediaUpdate {
-	psmu.mutation.AppendVideoCodecs(s)
 	return psmu
 }
 
@@ -100,6 +89,21 @@ func (psmu *PlaySessionMediaUpdate) SetSession(p *PlaySession) *PlaySessionMedia
 	return psmu.SetSessionID(p.ID)
 }
 
+// AddVideoCodecIDs adds the "video_codecs" edge to the VideoCodec entity by IDs.
+func (psmu *PlaySessionMediaUpdate) AddVideoCodecIDs(ids ...int) *PlaySessionMediaUpdate {
+	psmu.mutation.AddVideoCodecIDs(ids...)
+	return psmu
+}
+
+// AddVideoCodecs adds the "video_codecs" edges to the VideoCodec entity.
+func (psmu *PlaySessionMediaUpdate) AddVideoCodecs(v ...*VideoCodec) *PlaySessionMediaUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return psmu.AddVideoCodecIDs(ids...)
+}
+
 // Mutation returns the PlaySessionMediaMutation object of the builder.
 func (psmu *PlaySessionMediaUpdate) Mutation() *PlaySessionMediaMutation {
 	return psmu.mutation
@@ -136,6 +140,27 @@ func (psmu *PlaySessionMediaUpdate) ClearVideo() *PlaySessionMediaUpdate {
 func (psmu *PlaySessionMediaUpdate) ClearSession() *PlaySessionMediaUpdate {
 	psmu.mutation.ClearSession()
 	return psmu
+}
+
+// ClearVideoCodecs clears all "video_codecs" edges to the VideoCodec entity.
+func (psmu *PlaySessionMediaUpdate) ClearVideoCodecs() *PlaySessionMediaUpdate {
+	psmu.mutation.ClearVideoCodecs()
+	return psmu
+}
+
+// RemoveVideoCodecIDs removes the "video_codecs" edge to VideoCodec entities by IDs.
+func (psmu *PlaySessionMediaUpdate) RemoveVideoCodecIDs(ids ...int) *PlaySessionMediaUpdate {
+	psmu.mutation.RemoveVideoCodecIDs(ids...)
+	return psmu
+}
+
+// RemoveVideoCodecs removes "video_codecs" edges to VideoCodec entities.
+func (psmu *PlaySessionMediaUpdate) RemoveVideoCodecs(v ...*VideoCodec) *PlaySessionMediaUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return psmu.RemoveVideoCodecIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -184,14 +209,6 @@ func (psmu *PlaySessionMediaUpdate) sqlSave(ctx context.Context) (n int, err err
 				ps[i](selector)
 			}
 		}
-	}
-	if value, ok := psmu.mutation.VideoCodecs(); ok {
-		_spec.SetField(playsessionmedia.FieldVideoCodecs, field.TypeJSON, value)
-	}
-	if value, ok := psmu.mutation.AppendedVideoCodecs(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, playsessionmedia.FieldVideoCodecs, value)
-		})
 	}
 	if value, ok := psmu.mutation.Resolutions(); ok {
 		_spec.SetField(playsessionmedia.FieldResolutions, field.TypeJSON, value)
@@ -304,6 +321,51 @@ func (psmu *PlaySessionMediaUpdate) sqlSave(ctx context.Context) (n int, err err
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if psmu.mutation.VideoCodecsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.VideoCodecsTable,
+			Columns: []string{playsessionmedia.VideoCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := psmu.mutation.RemovedVideoCodecsIDs(); len(nodes) > 0 && !psmu.mutation.VideoCodecsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.VideoCodecsTable,
+			Columns: []string{playsessionmedia.VideoCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := psmu.mutation.VideoCodecsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.VideoCodecsTable,
+			Columns: []string{playsessionmedia.VideoCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if n, err = sqlgraph.UpdateNodes(ctx, psmu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{playsessionmedia.Label}
@@ -322,18 +384,6 @@ type PlaySessionMediaUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *PlaySessionMediaMutation
-}
-
-// SetVideoCodecs sets the "video_codecs" field.
-func (psmuo *PlaySessionMediaUpdateOne) SetVideoCodecs(s []string) *PlaySessionMediaUpdateOne {
-	psmuo.mutation.SetVideoCodecs(s)
-	return psmuo
-}
-
-// AppendVideoCodecs appends s to the "video_codecs" field.
-func (psmuo *PlaySessionMediaUpdateOne) AppendVideoCodecs(s []string) *PlaySessionMediaUpdateOne {
-	psmuo.mutation.AppendVideoCodecs(s)
-	return psmuo
 }
 
 // SetResolutions sets the "resolutions" field.
@@ -393,6 +443,21 @@ func (psmuo *PlaySessionMediaUpdateOne) SetSession(p *PlaySession) *PlaySessionM
 	return psmuo.SetSessionID(p.ID)
 }
 
+// AddVideoCodecIDs adds the "video_codecs" edge to the VideoCodec entity by IDs.
+func (psmuo *PlaySessionMediaUpdateOne) AddVideoCodecIDs(ids ...int) *PlaySessionMediaUpdateOne {
+	psmuo.mutation.AddVideoCodecIDs(ids...)
+	return psmuo
+}
+
+// AddVideoCodecs adds the "video_codecs" edges to the VideoCodec entity.
+func (psmuo *PlaySessionMediaUpdateOne) AddVideoCodecs(v ...*VideoCodec) *PlaySessionMediaUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return psmuo.AddVideoCodecIDs(ids...)
+}
+
 // Mutation returns the PlaySessionMediaMutation object of the builder.
 func (psmuo *PlaySessionMediaUpdateOne) Mutation() *PlaySessionMediaMutation {
 	return psmuo.mutation
@@ -429,6 +494,27 @@ func (psmuo *PlaySessionMediaUpdateOne) ClearVideo() *PlaySessionMediaUpdateOne 
 func (psmuo *PlaySessionMediaUpdateOne) ClearSession() *PlaySessionMediaUpdateOne {
 	psmuo.mutation.ClearSession()
 	return psmuo
+}
+
+// ClearVideoCodecs clears all "video_codecs" edges to the VideoCodec entity.
+func (psmuo *PlaySessionMediaUpdateOne) ClearVideoCodecs() *PlaySessionMediaUpdateOne {
+	psmuo.mutation.ClearVideoCodecs()
+	return psmuo
+}
+
+// RemoveVideoCodecIDs removes the "video_codecs" edge to VideoCodec entities by IDs.
+func (psmuo *PlaySessionMediaUpdateOne) RemoveVideoCodecIDs(ids ...int) *PlaySessionMediaUpdateOne {
+	psmuo.mutation.RemoveVideoCodecIDs(ids...)
+	return psmuo
+}
+
+// RemoveVideoCodecs removes "video_codecs" edges to VideoCodec entities.
+func (psmuo *PlaySessionMediaUpdateOne) RemoveVideoCodecs(v ...*VideoCodec) *PlaySessionMediaUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return psmuo.RemoveVideoCodecIDs(ids...)
 }
 
 // Where appends a list predicates to the PlaySessionMediaUpdate builder.
@@ -507,14 +593,6 @@ func (psmuo *PlaySessionMediaUpdateOne) sqlSave(ctx context.Context) (_node *Pla
 				ps[i](selector)
 			}
 		}
-	}
-	if value, ok := psmuo.mutation.VideoCodecs(); ok {
-		_spec.SetField(playsessionmedia.FieldVideoCodecs, field.TypeJSON, value)
-	}
-	if value, ok := psmuo.mutation.AppendedVideoCodecs(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, playsessionmedia.FieldVideoCodecs, value)
-		})
 	}
 	if value, ok := psmuo.mutation.Resolutions(); ok {
 		_spec.SetField(playsessionmedia.FieldResolutions, field.TypeJSON, value)
@@ -620,6 +698,51 @@ func (psmuo *PlaySessionMediaUpdateOne) sqlSave(ctx context.Context) (_node *Pla
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(playsession.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if psmuo.mutation.VideoCodecsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.VideoCodecsTable,
+			Columns: []string{playsessionmedia.VideoCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := psmuo.mutation.RemovedVideoCodecsIDs(); len(nodes) > 0 && !psmuo.mutation.VideoCodecsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.VideoCodecsTable,
+			Columns: []string{playsessionmedia.VideoCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := psmuo.mutation.VideoCodecsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.VideoCodecsTable,
+			Columns: []string{playsessionmedia.VideoCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

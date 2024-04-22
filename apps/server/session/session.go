@@ -24,9 +24,9 @@ func CreatePlaySession(ctx context.Context, client *ent.Client, videoID int) (*e
 		return nil, err
 	}
 
-	CreatePlaySessionMedia(ctx, client, playSession.ID, videoID)
+	err = CreatePlaySessionMedia(ctx, client, playSession.ID, videoID)
 
-	return playSession, nil
+	return playSession, err
 }
 
 func CreatePlaySessionMedia(ctx context.Context, client *ent.Client, playSessionID int, videoID int) error {
@@ -69,23 +69,59 @@ func CreatePlaySessionMedia(ctx context.Context, client *ent.Client, playSession
 		videoResolutions = append(videoResolutions, fmt.Sprintf("%dx%d", int(float32(videoHeight)*aspectRatio), videoHeight))
 	}
 
-	videoCodecs := []string{videoStream.CodecName}
-	for _, codec := range ffmpeg.TranscodingVideoCodecs {
-		if slices.Contains(videoCodecs, codec.Codec) {
-			continue
-		}
-
-		videoCodecs = append(videoCodecs, codec.Codec)
-	}
-
 	media, err := client.PlaySessionMedia.Create().
 		SetResolutions(videoResolutions).
-		SetVideoCodecs(videoCodecs).
 		SetSessionID(playSessionID).
 		SetVideoID(videoID).
 		Save(ctx)
 	if err != nil {
 		return err
+	}
+
+	if videoStream.ColorTransfer == "smpte2084" || videoStream.ColorTransfer == "arib-std-b67" {
+		// Av1
+		_, err = client.VideoCodec.Create().
+			SetName(ffmpeg.Av1HDRPreset.Codec).
+			SetMime(ffmpeg.Av1HDRPreset.Mime).
+			SetDynamicRange("hdr").
+			SetMediaID(media.ID).
+			Save(ctx)
+		if err != nil {
+			return err
+		}
+
+		// Vp9
+		_, err = client.VideoCodec.Create().
+			SetName(ffmpeg.Vp9HDRPreset.Codec).
+			SetMime(ffmpeg.Vp9HDRPreset.Mime).
+			SetDynamicRange("hdr").
+			SetMediaID(media.ID).
+			Save(ctx)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Av1
+		_, err = client.VideoCodec.Create().
+			SetName(ffmpeg.Av1SDRPreset.Codec).
+			SetMime(ffmpeg.Av1SDRPreset.Mime).
+			SetDynamicRange("sdr").
+			SetMediaID(media.ID).
+			Save(ctx)
+		if err != nil {
+			return err
+		}
+
+		// Vp9
+		_, err = client.VideoCodec.Create().
+			SetName(ffmpeg.Vp9SDRPreset.Codec).
+			SetMime(ffmpeg.Vp9SDRPreset.Mime).
+			SetDynamicRange("sdr").
+			SetMediaID(media.ID).
+			Save(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Create audio tracks

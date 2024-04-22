@@ -16,6 +16,7 @@ import (
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/predicate"
 	"github.com/altierawr/vstreamer/ent/video"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
 // PlaySessionMediaQuery is the builder for querying PlaySessionMedia entities.
@@ -28,10 +29,12 @@ type PlaySessionMediaQuery struct {
 	withAudioTracks      *AudioTrackQuery
 	withVideo            *VideoQuery
 	withSession          *PlaySessionQuery
+	withVideoCodecs      *VideoCodecQuery
 	withFKs              bool
 	modifiers            []func(*sql.Selector)
 	loadTotal            []func(context.Context, []*PlaySessionMedia) error
 	withNamedAudioTracks map[string]*AudioTrackQuery
+	withNamedVideoCodecs map[string]*VideoCodecQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -127,6 +130,28 @@ func (psmq *PlaySessionMediaQuery) QuerySession() *PlaySessionQuery {
 			sqlgraph.From(playsessionmedia.Table, playsessionmedia.FieldID, selector),
 			sqlgraph.To(playsession.Table, playsession.FieldID),
 			sqlgraph.Edge(sqlgraph.O2O, true, playsessionmedia.SessionTable, playsessionmedia.SessionColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(psmq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryVideoCodecs chains the current query on the "video_codecs" edge.
+func (psmq *PlaySessionMediaQuery) QueryVideoCodecs() *VideoCodecQuery {
+	query := (&VideoCodecClient{config: psmq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := psmq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := psmq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(playsessionmedia.Table, playsessionmedia.FieldID, selector),
+			sqlgraph.To(videocodec.Table, videocodec.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, playsessionmedia.VideoCodecsTable, playsessionmedia.VideoCodecsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(psmq.driver.Dialect(), step)
 		return fromU, nil
@@ -329,6 +354,7 @@ func (psmq *PlaySessionMediaQuery) Clone() *PlaySessionMediaQuery {
 		withAudioTracks: psmq.withAudioTracks.Clone(),
 		withVideo:       psmq.withVideo.Clone(),
 		withSession:     psmq.withSession.Clone(),
+		withVideoCodecs: psmq.withVideoCodecs.Clone(),
 		// clone intermediate query.
 		sql:  psmq.sql.Clone(),
 		path: psmq.path,
@@ -368,18 +394,29 @@ func (psmq *PlaySessionMediaQuery) WithSession(opts ...func(*PlaySessionQuery)) 
 	return psmq
 }
 
+// WithVideoCodecs tells the query-builder to eager-load the nodes that are connected to
+// the "video_codecs" edge. The optional arguments are used to configure the query builder of the edge.
+func (psmq *PlaySessionMediaQuery) WithVideoCodecs(opts ...func(*VideoCodecQuery)) *PlaySessionMediaQuery {
+	query := (&VideoCodecClient{config: psmq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	psmq.withVideoCodecs = query
+	return psmq
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
 // Example:
 //
 //	var v []struct {
-//		VideoCodecs []string `json:"video_codecs,omitempty"`
+//		Resolutions []string `json:"resolutions,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.PlaySessionMedia.Query().
-//		GroupBy(playsessionmedia.FieldVideoCodecs).
+//		GroupBy(playsessionmedia.FieldResolutions).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
 func (psmq *PlaySessionMediaQuery) GroupBy(field string, fields ...string) *PlaySessionMediaGroupBy {
@@ -397,11 +434,11 @@ func (psmq *PlaySessionMediaQuery) GroupBy(field string, fields ...string) *Play
 // Example:
 //
 //	var v []struct {
-//		VideoCodecs []string `json:"video_codecs,omitempty"`
+//		Resolutions []string `json:"resolutions,omitempty"`
 //	}
 //
 //	client.PlaySessionMedia.Query().
-//		Select(playsessionmedia.FieldVideoCodecs).
+//		Select(playsessionmedia.FieldResolutions).
 //		Scan(ctx, &v)
 func (psmq *PlaySessionMediaQuery) Select(fields ...string) *PlaySessionMediaSelect {
 	psmq.ctx.Fields = append(psmq.ctx.Fields, fields...)
@@ -447,10 +484,11 @@ func (psmq *PlaySessionMediaQuery) sqlAll(ctx context.Context, hooks ...queryHoo
 		nodes       = []*PlaySessionMedia{}
 		withFKs     = psmq.withFKs
 		_spec       = psmq.querySpec()
-		loadedTypes = [3]bool{
+		loadedTypes = [4]bool{
 			psmq.withAudioTracks != nil,
 			psmq.withVideo != nil,
 			psmq.withSession != nil,
+			psmq.withVideoCodecs != nil,
 		}
 	)
 	if psmq.withVideo != nil || psmq.withSession != nil {
@@ -499,10 +537,24 @@ func (psmq *PlaySessionMediaQuery) sqlAll(ctx context.Context, hooks ...queryHoo
 			return nil, err
 		}
 	}
+	if query := psmq.withVideoCodecs; query != nil {
+		if err := psmq.loadVideoCodecs(ctx, query, nodes,
+			func(n *PlaySessionMedia) { n.Edges.VideoCodecs = []*VideoCodec{} },
+			func(n *PlaySessionMedia, e *VideoCodec) { n.Edges.VideoCodecs = append(n.Edges.VideoCodecs, e) }); err != nil {
+			return nil, err
+		}
+	}
 	for name, query := range psmq.withNamedAudioTracks {
 		if err := psmq.loadAudioTracks(ctx, query, nodes,
 			func(n *PlaySessionMedia) { n.appendNamedAudioTracks(name) },
 			func(n *PlaySessionMedia, e *AudioTrack) { n.appendNamedAudioTracks(name, e) }); err != nil {
+			return nil, err
+		}
+	}
+	for name, query := range psmq.withNamedVideoCodecs {
+		if err := psmq.loadVideoCodecs(ctx, query, nodes,
+			func(n *PlaySessionMedia) { n.appendNamedVideoCodecs(name) },
+			func(n *PlaySessionMedia, e *VideoCodec) { n.appendNamedVideoCodecs(name, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -609,6 +661,37 @@ func (psmq *PlaySessionMediaQuery) loadSession(ctx context.Context, query *PlayS
 	}
 	return nil
 }
+func (psmq *PlaySessionMediaQuery) loadVideoCodecs(ctx context.Context, query *VideoCodecQuery, nodes []*PlaySessionMedia, init func(*PlaySessionMedia), assign func(*PlaySessionMedia, *VideoCodec)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*PlaySessionMedia)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.VideoCodec(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(playsessionmedia.VideoCodecsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.play_session_media_video_codecs
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "play_session_media_video_codecs" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "play_session_media_video_codecs" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
 
 func (psmq *PlaySessionMediaQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := psmq.querySpec()
@@ -705,6 +788,20 @@ func (psmq *PlaySessionMediaQuery) WithNamedAudioTracks(name string, opts ...fun
 		psmq.withNamedAudioTracks = make(map[string]*AudioTrackQuery)
 	}
 	psmq.withNamedAudioTracks[name] = query
+	return psmq
+}
+
+// WithNamedVideoCodecs tells the query-builder to eager-load the nodes that are connected to the "video_codecs"
+// edge with the given name. The optional arguments are used to configure the query builder of the edge.
+func (psmq *PlaySessionMediaQuery) WithNamedVideoCodecs(name string, opts ...func(*VideoCodecQuery)) *PlaySessionMediaQuery {
+	query := (&VideoCodecClient{config: psmq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	if psmq.withNamedVideoCodecs == nil {
+		psmq.withNamedVideoCodecs = make(map[string]*VideoCodecQuery)
+	}
+	psmq.withNamedVideoCodecs[name] = query
 	return psmq
 }
 

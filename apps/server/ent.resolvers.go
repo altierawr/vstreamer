@@ -25,6 +25,11 @@ func (r *queryResolver) Libraries(ctx context.Context) ([]*ent.Library, error) {
 	return r.client.Library.Query().All(ctx)
 }
 
+// PlaySessions is the resolver for the playSessions field.
+func (r *queryResolver) PlaySessions(ctx context.Context) ([]*ent.PlaySession, error) {
+	return r.client.PlaySession.Query().All(ctx)
+}
+
 // Videos is the resolver for the videos field.
 func (r *queryResolver) Videos(ctx context.Context) ([]*ent.Video, error) {
 	return r.client.Video.Query().All(ctx)

@@ -14,8 +14,6 @@ type PlaySessionMedia struct {
 // Fields of the PlaySessionMedia.
 func (PlaySessionMedia) Fields() []ent.Field {
 	return []ent.Field{
-		field.Strings("video_codecs").
-			Default([]string{}),
 		field.Strings("resolutions").
 			Default([]string{}),
 	}
@@ -32,5 +30,6 @@ func (PlaySessionMedia) Edges() []ent.Edge {
 			Ref("media").
 			Unique().
 			Required(),
+		edge.To("video_codecs", VideoCodec.Type),
 	}
 }

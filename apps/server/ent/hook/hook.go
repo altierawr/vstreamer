@@ -93,6 +93,18 @@ func (f VideoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.VideoMutation", m)
 }
 
+// The VideoCodecFunc type is an adapter to allow the use of ordinary
+// function as VideoCodec mutator.
+type VideoCodecFunc func(context.Context, *ent.VideoCodecMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f VideoCodecFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.VideoCodecMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.VideoCodecMutation", m)
+}
+
 // Condition is a hook condition function.
 type Condition func(context.Context, ent.Mutation) bool
 

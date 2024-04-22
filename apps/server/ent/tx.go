@@ -26,6 +26,8 @@ type Tx struct {
 	Stream *StreamClient
 	// Video is the client for interacting with the Video builders.
 	Video *VideoClient
+	// VideoCodec is the client for interacting with the VideoCodec builders.
+	VideoCodec *VideoCodecClient
 
 	// lazily loaded.
 	client     *Client
@@ -164,6 +166,7 @@ func (tx *Tx) init() {
 	tx.PlaybackClient = NewPlaybackClientClient(tx.config)
 	tx.Stream = NewStreamClient(tx.config)
 	tx.Video = NewVideoClient(tx.config)
+	tx.VideoCodec = NewVideoCodecClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

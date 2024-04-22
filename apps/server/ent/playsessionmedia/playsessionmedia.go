@@ -12,8 +12,6 @@ const (
 	Label = "play_session_media"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
-	// FieldVideoCodecs holds the string denoting the video_codecs field in the database.
-	FieldVideoCodecs = "video_codecs"
 	// FieldResolutions holds the string denoting the resolutions field in the database.
 	FieldResolutions = "resolutions"
 	// EdgeAudioTracks holds the string denoting the audio_tracks edge name in mutations.
@@ -22,6 +20,8 @@ const (
 	EdgeVideo = "video"
 	// EdgeSession holds the string denoting the session edge name in mutations.
 	EdgeSession = "session"
+	// EdgeVideoCodecs holds the string denoting the video_codecs edge name in mutations.
+	EdgeVideoCodecs = "video_codecs"
 	// Table holds the table name of the playsessionmedia in the database.
 	Table = "play_session_media"
 	// AudioTracksTable is the table that holds the audio_tracks relation/edge.
@@ -45,12 +45,18 @@ const (
 	SessionInverseTable = "play_sessions"
 	// SessionColumn is the table column denoting the session relation/edge.
 	SessionColumn = "play_session_media"
+	// VideoCodecsTable is the table that holds the video_codecs relation/edge.
+	VideoCodecsTable = "video_codecs"
+	// VideoCodecsInverseTable is the table name for the VideoCodec entity.
+	// It exists in this package in order to avoid circular dependency with the "videocodec" package.
+	VideoCodecsInverseTable = "video_codecs"
+	// VideoCodecsColumn is the table column denoting the video_codecs relation/edge.
+	VideoCodecsColumn = "play_session_media_video_codecs"
 )
 
 // Columns holds all SQL columns for playsessionmedia fields.
 var Columns = []string{
 	FieldID,
-	FieldVideoCodecs,
 	FieldResolutions,
 }
 
@@ -77,8 +83,6 @@ func ValidColumn(column string) bool {
 }
 
 var (
-	// DefaultVideoCodecs holds the default value on creation for the "video_codecs" field.
-	DefaultVideoCodecs []string
 	// DefaultResolutions holds the default value on creation for the "resolutions" field.
 	DefaultResolutions []string
 )
@@ -118,6 +122,20 @@ func BySessionField(field string, opts ...sql.OrderTermOption) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newSessionStep(), sql.OrderByField(field, opts...))
 	}
 }
+
+// ByVideoCodecsCount orders the results by video_codecs count.
+func ByVideoCodecsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newVideoCodecsStep(), opts...)
+	}
+}
+
+// ByVideoCodecs orders the results by video_codecs terms.
+func ByVideoCodecs(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newVideoCodecsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newAudioTracksStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -137,5 +155,12 @@ func newSessionStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(SessionInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2O, true, SessionTable, SessionColumn),
+	)
+}
+func newVideoCodecsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(VideoCodecsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, VideoCodecsTable, VideoCodecsColumn),
 	)
 }

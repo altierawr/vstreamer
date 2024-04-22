@@ -19,6 +19,7 @@ import (
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/video"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -86,6 +87,7 @@ func checkColumn(table, column string) error {
 			playbackclient.Table:   playbackclient.ValidColumn,
 			stream.Table:           stream.ValidColumn,
 			video.Table:            video.ValidColumn,
+			videocodec.Table:       videocodec.ValidColumn,
 		})
 	})
 	return columnCheck(table, column)

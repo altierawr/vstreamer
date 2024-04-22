@@ -76,6 +76,18 @@ func (psm *PlaySessionMedia) Session(ctx context.Context) (*PlaySession, error) 
 	return result, err
 }
 
+func (psm *PlaySessionMedia) VideoCodecs(ctx context.Context) (result []*VideoCodec, err error) {
+	if fc := graphql.GetFieldContext(ctx); fc != nil && fc.Field.Alias != "" {
+		result, err = psm.NamedVideoCodecs(graphql.GetFieldContext(ctx).Field.Alias)
+	} else {
+		result, err = psm.Edges.VideoCodecsOrErr()
+	}
+	if IsNotLoaded(err) {
+		result, err = psm.QueryVideoCodecs().All(ctx)
+	}
+	return result, err
+}
+
 func (pc *PlaybackClient) Session(ctx context.Context) (*PlaySession, error) {
 	result, err := pc.Edges.SessionOrErr()
 	if IsNotLoaded(err) {
@@ -100,6 +112,14 @@ func (v *Video) Library(ctx context.Context) (*Library, error) {
 	result, err := v.Edges.LibraryOrErr()
 	if IsNotLoaded(err) {
 		result, err = v.QueryLibrary().Only(ctx)
+	}
+	return result, MaskNotFound(err)
+}
+
+func (vc *VideoCodec) Media(ctx context.Context) (*PlaySessionMedia, error) {
+	result, err := vc.Edges.MediaOrErr()
+	if IsNotLoaded(err) {
+		result, err = vc.QueryMedia().Only(ctx)
 	}
 	return result, MaskNotFound(err)
 }
