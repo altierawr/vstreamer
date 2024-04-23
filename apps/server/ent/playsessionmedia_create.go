@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/playsession"
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
@@ -87,6 +88,21 @@ func (psmc *PlaySessionMediaCreate) AddVideoCodecs(v ...*VideoCodec) *PlaySessio
 		ids[i] = v[i].ID
 	}
 	return psmc.AddVideoCodecIDs(ids...)
+}
+
+// AddAudioCodecIDs adds the "audio_codecs" edge to the AudioCodec entity by IDs.
+func (psmc *PlaySessionMediaCreate) AddAudioCodecIDs(ids ...int) *PlaySessionMediaCreate {
+	psmc.mutation.AddAudioCodecIDs(ids...)
+	return psmc
+}
+
+// AddAudioCodecs adds the "audio_codecs" edges to the AudioCodec entity.
+func (psmc *PlaySessionMediaCreate) AddAudioCodecs(a ...*AudioCodec) *PlaySessionMediaCreate {
+	ids := make([]int, len(a))
+	for i := range a {
+		ids[i] = a[i].ID
+	}
+	return psmc.AddAudioCodecIDs(ids...)
 }
 
 // Mutation returns the PlaySessionMediaMutation object of the builder.
@@ -227,6 +243,22 @@ func (psmc *PlaySessionMediaCreate) createSpec() (*PlaySessionMedia, *sqlgraph.C
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := psmc.mutation.AudioCodecsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.AudioCodecsTable,
+			Columns: []string{playsessionmedia.AudioCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

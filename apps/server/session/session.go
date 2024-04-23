@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/altierawr/vstreamer/ent"
 	"github.com/altierawr/vstreamer/ent/video"
@@ -125,28 +124,39 @@ func CreatePlaySessionMedia(ctx context.Context, client *ent.Client, playSession
 	}
 
 	// Create audio tracks
+	audioStreamNr := 1
 	for _, audioStream := range audioStreams {
-		codecs := []string{audioStream.CodecName}
-		for _, codec := range ffmpeg.TranscodingAudioCodecs {
-			if slices.Contains(codecs, codec.Codec) {
-				continue
-			}
-
-			codecs = append(codecs, codec.Codec)
-		}
-
-		track := client.AudioTrack.Create().
+		trackCreate := client.AudioTrack.Create().
 			SetMediaID(media.ID).
-			SetName(audioStream.Profile).
 			SetNrChannels(audioStream.Channels).
-			SetChannelLayout(audioStream.ChannelLayout).
-			SetCodecs(codecs)
+			SetChannelLayout(audioStream.ChannelLayout)
 
-		if audioStream.Tags["language"] != "und" {
-			track.SetLanguage(audioStream.Tags["language"])
+		if title, ok := audioStream.Tags["title"]; ok {
+			trackCreate = trackCreate.SetName(title)
+		} else {
+			trackCreate = trackCreate.SetName(fmt.Sprintf("Track %d", audioStreamNr))
 		}
 
-		track.Save(ctx)
+		if language, ok := audioStream.Tags["language"]; ok && language != "und" {
+			trackCreate.SetLanguage(audioStream.Tags["language"])
+		}
+
+		track, err := trackCreate.Save(ctx)
+		if err != nil {
+			return err
+		}
+
+		// Flac
+		_, err = client.AudioCodec.Create().
+			SetName(ffmpeg.FlacPreset.Codec).
+			SetMime(ffmpeg.FlacPreset.Mime).
+			AddAudioTrackIDs(track.ID).
+			Save(ctx)
+		if err != nil {
+			return err
+		}
+
+		audioStreamNr += 1
 	}
 
 	return nil

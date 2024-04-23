@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/library"
 	"github.com/altierawr/vstreamer/ent/playbackclient"
@@ -80,6 +81,7 @@ var (
 func checkColumn(table, column string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
+			audiocodec.Table:       audiocodec.ValidColumn,
 			audiotrack.Table:       audiotrack.ValidColumn,
 			library.Table:          library.ValidColumn,
 			playsession.Table:      playsession.ValidColumn,

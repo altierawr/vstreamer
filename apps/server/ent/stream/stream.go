@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 )
 
 const (
@@ -21,18 +22,32 @@ const (
 	FieldHeight = "height"
 	// FieldContainer holds the string denoting the container field in the database.
 	FieldContainer = "container"
-	// FieldVideoCodec holds the string denoting the video_codec field in the database.
-	FieldVideoCodec = "video_codec"
-	// FieldAudioCodec holds the string denoting the audio_codec field in the database.
-	FieldAudioCodec = "audio_codec"
 	// FieldSegmentDuration holds the string denoting the segment_duration field in the database.
 	FieldSegmentDuration = "segment_duration"
 	// FieldQuality holds the string denoting the quality field in the database.
 	FieldQuality = "quality"
 	// FieldType holds the string denoting the type field in the database.
 	FieldType = "type"
+	// EdgeVideoCodec holds the string denoting the video_codec edge name in mutations.
+	EdgeVideoCodec = "video_codec"
+	// EdgeAudioCodec holds the string denoting the audio_codec edge name in mutations.
+	EdgeAudioCodec = "audio_codec"
 	// Table holds the table name of the stream in the database.
 	Table = "streams"
+	// VideoCodecTable is the table that holds the video_codec relation/edge.
+	VideoCodecTable = "streams"
+	// VideoCodecInverseTable is the table name for the VideoCodec entity.
+	// It exists in this package in order to avoid circular dependency with the "videocodec" package.
+	VideoCodecInverseTable = "video_codecs"
+	// VideoCodecColumn is the table column denoting the video_codec relation/edge.
+	VideoCodecColumn = "video_codec_streams"
+	// AudioCodecTable is the table that holds the audio_codec relation/edge.
+	AudioCodecTable = "streams"
+	// AudioCodecInverseTable is the table name for the AudioCodec entity.
+	// It exists in this package in order to avoid circular dependency with the "audiocodec" package.
+	AudioCodecInverseTable = "audio_codecs"
+	// AudioCodecColumn is the table column denoting the audio_codec relation/edge.
+	AudioCodecColumn = "audio_codec_streams"
 )
 
 // Columns holds all SQL columns for stream fields.
@@ -41,17 +56,27 @@ var Columns = []string{
 	FieldWidth,
 	FieldHeight,
 	FieldContainer,
-	FieldVideoCodec,
-	FieldAudioCodec,
 	FieldSegmentDuration,
 	FieldQuality,
 	FieldType,
+}
+
+// ForeignKeys holds the SQL foreign-keys that are owned by the "streams"
+// table and are not defined as standalone fields in the schema.
+var ForeignKeys = []string{
+	"audio_codec_streams",
+	"video_codec_streams",
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
 func ValidColumn(column string) bool {
 	for i := range Columns {
 		if column == Columns[i] {
+			return true
+		}
+	}
+	for i := range ForeignKeys {
+		if column == ForeignKeys[i] {
 			return true
 		}
 	}
@@ -131,16 +156,6 @@ func ByContainer(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldContainer, opts...).ToFunc()
 }
 
-// ByVideoCodec orders the results by the video_codec field.
-func ByVideoCodec(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVideoCodec, opts...).ToFunc()
-}
-
-// ByAudioCodec orders the results by the audio_codec field.
-func ByAudioCodec(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldAudioCodec, opts...).ToFunc()
-}
-
 // BySegmentDuration orders the results by the segment_duration field.
 func BySegmentDuration(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSegmentDuration, opts...).ToFunc()
@@ -154,6 +169,34 @@ func ByQuality(opts ...sql.OrderTermOption) OrderOption {
 // ByType orders the results by the type field.
 func ByType(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldType, opts...).ToFunc()
+}
+
+// ByVideoCodecField orders the results by video_codec field.
+func ByVideoCodecField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newVideoCodecStep(), sql.OrderByField(field, opts...))
+	}
+}
+
+// ByAudioCodecField orders the results by audio_codec field.
+func ByAudioCodecField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAudioCodecStep(), sql.OrderByField(field, opts...))
+	}
+}
+func newVideoCodecStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(VideoCodecInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, true, VideoCodecTable, VideoCodecColumn),
+	)
+}
+func newAudioCodecStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(AudioCodecInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, true, AudioCodecTable, AudioCodecColumn),
+	)
 }
 
 // MarshalGQL implements graphql.Marshaler interface.

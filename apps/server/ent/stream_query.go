@@ -10,19 +10,24 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/predicate"
 	"github.com/altierawr/vstreamer/ent/stream"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
 // StreamQuery is the builder for querying Stream entities.
 type StreamQuery struct {
 	config
-	ctx        *QueryContext
-	order      []stream.OrderOption
-	inters     []Interceptor
-	predicates []predicate.Stream
-	modifiers  []func(*sql.Selector)
-	loadTotal  []func(context.Context, []*Stream) error
+	ctx            *QueryContext
+	order          []stream.OrderOption
+	inters         []Interceptor
+	predicates     []predicate.Stream
+	withVideoCodec *VideoCodecQuery
+	withAudioCodec *AudioCodecQuery
+	withFKs        bool
+	modifiers      []func(*sql.Selector)
+	loadTotal      []func(context.Context, []*Stream) error
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -57,6 +62,50 @@ func (sq *StreamQuery) Unique(unique bool) *StreamQuery {
 func (sq *StreamQuery) Order(o ...stream.OrderOption) *StreamQuery {
 	sq.order = append(sq.order, o...)
 	return sq
+}
+
+// QueryVideoCodec chains the current query on the "video_codec" edge.
+func (sq *StreamQuery) QueryVideoCodec() *VideoCodecQuery {
+	query := (&VideoCodecClient{config: sq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := sq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := sq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(stream.Table, stream.FieldID, selector),
+			sqlgraph.To(videocodec.Table, videocodec.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, stream.VideoCodecTable, stream.VideoCodecColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(sq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryAudioCodec chains the current query on the "audio_codec" edge.
+func (sq *StreamQuery) QueryAudioCodec() *AudioCodecQuery {
+	query := (&AudioCodecClient{config: sq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := sq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := sq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(stream.Table, stream.FieldID, selector),
+			sqlgraph.To(audiocodec.Table, audiocodec.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, stream.AudioCodecTable, stream.AudioCodecColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(sq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
 }
 
 // First returns the first Stream entity from the query.
@@ -246,15 +295,39 @@ func (sq *StreamQuery) Clone() *StreamQuery {
 		return nil
 	}
 	return &StreamQuery{
-		config:     sq.config,
-		ctx:        sq.ctx.Clone(),
-		order:      append([]stream.OrderOption{}, sq.order...),
-		inters:     append([]Interceptor{}, sq.inters...),
-		predicates: append([]predicate.Stream{}, sq.predicates...),
+		config:         sq.config,
+		ctx:            sq.ctx.Clone(),
+		order:          append([]stream.OrderOption{}, sq.order...),
+		inters:         append([]Interceptor{}, sq.inters...),
+		predicates:     append([]predicate.Stream{}, sq.predicates...),
+		withVideoCodec: sq.withVideoCodec.Clone(),
+		withAudioCodec: sq.withAudioCodec.Clone(),
 		// clone intermediate query.
 		sql:  sq.sql.Clone(),
 		path: sq.path,
 	}
+}
+
+// WithVideoCodec tells the query-builder to eager-load the nodes that are connected to
+// the "video_codec" edge. The optional arguments are used to configure the query builder of the edge.
+func (sq *StreamQuery) WithVideoCodec(opts ...func(*VideoCodecQuery)) *StreamQuery {
+	query := (&VideoCodecClient{config: sq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	sq.withVideoCodec = query
+	return sq
+}
+
+// WithAudioCodec tells the query-builder to eager-load the nodes that are connected to
+// the "audio_codec" edge. The optional arguments are used to configure the query builder of the edge.
+func (sq *StreamQuery) WithAudioCodec(opts ...func(*AudioCodecQuery)) *StreamQuery {
+	query := (&AudioCodecClient{config: sq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	sq.withAudioCodec = query
+	return sq
 }
 
 // GroupBy is used to group vertices by one or more fields/columns.
@@ -333,15 +406,27 @@ func (sq *StreamQuery) prepareQuery(ctx context.Context) error {
 
 func (sq *StreamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Stream, error) {
 	var (
-		nodes = []*Stream{}
-		_spec = sq.querySpec()
+		nodes       = []*Stream{}
+		withFKs     = sq.withFKs
+		_spec       = sq.querySpec()
+		loadedTypes = [2]bool{
+			sq.withVideoCodec != nil,
+			sq.withAudioCodec != nil,
+		}
 	)
+	if sq.withVideoCodec != nil || sq.withAudioCodec != nil {
+		withFKs = true
+	}
+	if withFKs {
+		_spec.Node.Columns = append(_spec.Node.Columns, stream.ForeignKeys...)
+	}
 	_spec.ScanValues = func(columns []string) ([]any, error) {
 		return (*Stream).scanValues(nil, columns)
 	}
 	_spec.Assign = func(columns []string, values []any) error {
 		node := &Stream{config: sq.config}
 		nodes = append(nodes, node)
+		node.Edges.loadedTypes = loadedTypes
 		return node.assignValues(columns, values)
 	}
 	if len(sq.modifiers) > 0 {
@@ -356,12 +441,89 @@ func (sq *StreamQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Strea
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
+	if query := sq.withVideoCodec; query != nil {
+		if err := sq.loadVideoCodec(ctx, query, nodes, nil,
+			func(n *Stream, e *VideoCodec) { n.Edges.VideoCodec = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := sq.withAudioCodec; query != nil {
+		if err := sq.loadAudioCodec(ctx, query, nodes, nil,
+			func(n *Stream, e *AudioCodec) { n.Edges.AudioCodec = e }); err != nil {
+			return nil, err
+		}
+	}
 	for i := range sq.loadTotal {
 		if err := sq.loadTotal[i](ctx, nodes); err != nil {
 			return nil, err
 		}
 	}
 	return nodes, nil
+}
+
+func (sq *StreamQuery) loadVideoCodec(ctx context.Context, query *VideoCodecQuery, nodes []*Stream, init func(*Stream), assign func(*Stream, *VideoCodec)) error {
+	ids := make([]int, 0, len(nodes))
+	nodeids := make(map[int][]*Stream)
+	for i := range nodes {
+		if nodes[i].video_codec_streams == nil {
+			continue
+		}
+		fk := *nodes[i].video_codec_streams
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	query.Where(videocodec.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "video_codec_streams" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
+}
+func (sq *StreamQuery) loadAudioCodec(ctx context.Context, query *AudioCodecQuery, nodes []*Stream, init func(*Stream), assign func(*Stream, *AudioCodec)) error {
+	ids := make([]int, 0, len(nodes))
+	nodeids := make(map[int][]*Stream)
+	for i := range nodes {
+		if nodes[i].audio_codec_streams == nil {
+			continue
+		}
+		fk := *nodes[i].audio_codec_streams
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	query.Where(audiocodec.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "audio_codec_streams" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
 }
 
 func (sq *StreamQuery) sqlCount(ctx context.Context) (int, error) {

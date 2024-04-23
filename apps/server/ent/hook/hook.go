@@ -9,6 +9,18 @@ import (
 	"github.com/altierawr/vstreamer/ent"
 )
 
+// The AudioCodecFunc type is an adapter to allow the use of ordinary
+// function as AudioCodec mutator.
+type AudioCodecFunc func(context.Context, *ent.AudioCodecMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AudioCodecFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AudioCodecMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AudioCodecMutation", m)
+}
+
 // The AudioTrackFunc type is an adapter to allow the use of ordinary
 // function as AudioTrack mutator.
 type AudioTrackFunc func(context.Context, *ent.AudioTrackMutation) (ent.Value, error)

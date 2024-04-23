@@ -318,6 +318,29 @@ func LanguageContainsFold(v string) predicate.AudioTrack {
 	return predicate.AudioTrack(sql.FieldContainsFold(FieldLanguage, v))
 }
 
+// HasCodecs applies the HasEdge predicate on the "codecs" edge.
+func HasCodecs() predicate.AudioTrack {
+	return predicate.AudioTrack(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, CodecsTable, CodecsPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasCodecsWith applies the HasEdge predicate on the "codecs" edge with a given conditions (other predicates).
+func HasCodecsWith(preds ...predicate.AudioCodec) predicate.AudioTrack {
+	return predicate.AudioTrack(func(s *sql.Selector) {
+		step := newCodecsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasMedia applies the HasEdge predicate on the "media" edge.
 func HasMedia() predicate.AudioTrack {
 	return predicate.AudioTrack(func(s *sql.Selector) {

@@ -20,12 +20,17 @@ const (
 	FieldChannelLayout = "channel_layout"
 	// FieldLanguage holds the string denoting the language field in the database.
 	FieldLanguage = "language"
-	// FieldCodecs holds the string denoting the codecs field in the database.
-	FieldCodecs = "codecs"
+	// EdgeCodecs holds the string denoting the codecs edge name in mutations.
+	EdgeCodecs = "codecs"
 	// EdgeMedia holds the string denoting the media edge name in mutations.
 	EdgeMedia = "media"
 	// Table holds the table name of the audiotrack in the database.
 	Table = "audio_tracks"
+	// CodecsTable is the table that holds the codecs relation/edge. The primary key declared below.
+	CodecsTable = "audio_track_codecs"
+	// CodecsInverseTable is the table name for the AudioCodec entity.
+	// It exists in this package in order to avoid circular dependency with the "audiocodec" package.
+	CodecsInverseTable = "audio_codecs"
 	// MediaTable is the table that holds the media relation/edge.
 	MediaTable = "audio_tracks"
 	// MediaInverseTable is the table name for the PlaySessionMedia entity.
@@ -42,7 +47,6 @@ var Columns = []string{
 	FieldNrChannels,
 	FieldChannelLayout,
 	FieldLanguage,
-	FieldCodecs,
 }
 
 // ForeignKeys holds the SQL foreign-keys that are owned by the "audio_tracks"
@@ -50,6 +54,12 @@ var Columns = []string{
 var ForeignKeys = []string{
 	"play_session_media_audio_tracks",
 }
+
+var (
+	// CodecsPrimaryKey and CodecsColumn2 are the table columns denoting the
+	// primary key for the codecs relation (M2M).
+	CodecsPrimaryKey = []string{"audio_track_id", "audio_codec_id"}
+)
 
 // ValidColumn reports if the column name is valid (part of the table columns).
 func ValidColumn(column string) bool {
@@ -94,11 +104,32 @@ func ByLanguage(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldLanguage, opts...).ToFunc()
 }
 
+// ByCodecsCount orders the results by codecs count.
+func ByCodecsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newCodecsStep(), opts...)
+	}
+}
+
+// ByCodecs orders the results by codecs terms.
+func ByCodecs(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newCodecsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByMediaField orders the results by media field.
 func ByMediaField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newMediaStep(), sql.OrderByField(field, opts...))
 	}
+}
+func newCodecsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(CodecsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, false, CodecsTable, CodecsPrimaryKey...),
+	)
 }
 func newMediaStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(

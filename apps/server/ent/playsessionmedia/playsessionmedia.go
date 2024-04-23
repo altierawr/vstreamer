@@ -22,6 +22,8 @@ const (
 	EdgeSession = "session"
 	// EdgeVideoCodecs holds the string denoting the video_codecs edge name in mutations.
 	EdgeVideoCodecs = "video_codecs"
+	// EdgeAudioCodecs holds the string denoting the audio_codecs edge name in mutations.
+	EdgeAudioCodecs = "audio_codecs"
 	// Table holds the table name of the playsessionmedia in the database.
 	Table = "play_session_media"
 	// AudioTracksTable is the table that holds the audio_tracks relation/edge.
@@ -52,6 +54,13 @@ const (
 	VideoCodecsInverseTable = "video_codecs"
 	// VideoCodecsColumn is the table column denoting the video_codecs relation/edge.
 	VideoCodecsColumn = "play_session_media_video_codecs"
+	// AudioCodecsTable is the table that holds the audio_codecs relation/edge.
+	AudioCodecsTable = "audio_codecs"
+	// AudioCodecsInverseTable is the table name for the AudioCodec entity.
+	// It exists in this package in order to avoid circular dependency with the "audiocodec" package.
+	AudioCodecsInverseTable = "audio_codecs"
+	// AudioCodecsColumn is the table column denoting the audio_codecs relation/edge.
+	AudioCodecsColumn = "play_session_media_audio_codecs"
 )
 
 // Columns holds all SQL columns for playsessionmedia fields.
@@ -136,6 +145,20 @@ func ByVideoCodecs(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newVideoCodecsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByAudioCodecsCount orders the results by audio_codecs count.
+func ByAudioCodecsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newAudioCodecsStep(), opts...)
+	}
+}
+
+// ByAudioCodecs orders the results by audio_codecs terms.
+func ByAudioCodecs(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAudioCodecsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newAudioTracksStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -162,5 +185,12 @@ func newVideoCodecsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(VideoCodecsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, VideoCodecsTable, VideoCodecsColumn),
+	)
+}
+func newAudioCodecsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(AudioCodecsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, AudioCodecsTable, AudioCodecsColumn),
 	)
 }

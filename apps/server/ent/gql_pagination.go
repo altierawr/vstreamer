@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/errcode"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/library"
 	"github.com/altierawr/vstreamer/ent/playbackclient"
@@ -100,6 +101,255 @@ func paginateLimit(first, last *int) int {
 		limit = *last + 1
 	}
 	return limit
+}
+
+// AudioCodecEdge is the edge representation of AudioCodec.
+type AudioCodecEdge struct {
+	Node   *AudioCodec `json:"node"`
+	Cursor Cursor      `json:"cursor"`
+}
+
+// AudioCodecConnection is the connection containing edges to AudioCodec.
+type AudioCodecConnection struct {
+	Edges      []*AudioCodecEdge `json:"edges"`
+	PageInfo   PageInfo          `json:"pageInfo"`
+	TotalCount int               `json:"totalCount"`
+}
+
+func (c *AudioCodecConnection) build(nodes []*AudioCodec, pager *audiocodecPager, after *Cursor, first *int, before *Cursor, last *int) {
+	c.PageInfo.HasNextPage = before != nil
+	c.PageInfo.HasPreviousPage = after != nil
+	if first != nil && *first+1 == len(nodes) {
+		c.PageInfo.HasNextPage = true
+		nodes = nodes[:len(nodes)-1]
+	} else if last != nil && *last+1 == len(nodes) {
+		c.PageInfo.HasPreviousPage = true
+		nodes = nodes[:len(nodes)-1]
+	}
+	var nodeAt func(int) *AudioCodec
+	if last != nil {
+		n := len(nodes) - 1
+		nodeAt = func(i int) *AudioCodec {
+			return nodes[n-i]
+		}
+	} else {
+		nodeAt = func(i int) *AudioCodec {
+			return nodes[i]
+		}
+	}
+	c.Edges = make([]*AudioCodecEdge, len(nodes))
+	for i := range nodes {
+		node := nodeAt(i)
+		c.Edges[i] = &AudioCodecEdge{
+			Node:   node,
+			Cursor: pager.toCursor(node),
+		}
+	}
+	if l := len(c.Edges); l > 0 {
+		c.PageInfo.StartCursor = &c.Edges[0].Cursor
+		c.PageInfo.EndCursor = &c.Edges[l-1].Cursor
+	}
+	if c.TotalCount == 0 {
+		c.TotalCount = len(nodes)
+	}
+}
+
+// AudioCodecPaginateOption enables pagination customization.
+type AudioCodecPaginateOption func(*audiocodecPager) error
+
+// WithAudioCodecOrder configures pagination ordering.
+func WithAudioCodecOrder(order *AudioCodecOrder) AudioCodecPaginateOption {
+	if order == nil {
+		order = DefaultAudioCodecOrder
+	}
+	o := *order
+	return func(pager *audiocodecPager) error {
+		if err := o.Direction.Validate(); err != nil {
+			return err
+		}
+		if o.Field == nil {
+			o.Field = DefaultAudioCodecOrder.Field
+		}
+		pager.order = &o
+		return nil
+	}
+}
+
+// WithAudioCodecFilter configures pagination filter.
+func WithAudioCodecFilter(filter func(*AudioCodecQuery) (*AudioCodecQuery, error)) AudioCodecPaginateOption {
+	return func(pager *audiocodecPager) error {
+		if filter == nil {
+			return errors.New("AudioCodecQuery filter cannot be nil")
+		}
+		pager.filter = filter
+		return nil
+	}
+}
+
+type audiocodecPager struct {
+	reverse bool
+	order   *AudioCodecOrder
+	filter  func(*AudioCodecQuery) (*AudioCodecQuery, error)
+}
+
+func newAudioCodecPager(opts []AudioCodecPaginateOption, reverse bool) (*audiocodecPager, error) {
+	pager := &audiocodecPager{reverse: reverse}
+	for _, opt := range opts {
+		if err := opt(pager); err != nil {
+			return nil, err
+		}
+	}
+	if pager.order == nil {
+		pager.order = DefaultAudioCodecOrder
+	}
+	return pager, nil
+}
+
+func (p *audiocodecPager) applyFilter(query *AudioCodecQuery) (*AudioCodecQuery, error) {
+	if p.filter != nil {
+		return p.filter(query)
+	}
+	return query, nil
+}
+
+func (p *audiocodecPager) toCursor(ac *AudioCodec) Cursor {
+	return p.order.Field.toCursor(ac)
+}
+
+func (p *audiocodecPager) applyCursors(query *AudioCodecQuery, after, before *Cursor) (*AudioCodecQuery, error) {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	for _, predicate := range entgql.CursorsPredicate(after, before, DefaultAudioCodecOrder.Field.column, p.order.Field.column, direction) {
+		query = query.Where(predicate)
+	}
+	return query, nil
+}
+
+func (p *audiocodecPager) applyOrder(query *AudioCodecQuery) *AudioCodecQuery {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	query = query.Order(p.order.Field.toTerm(direction.OrderTermOption()))
+	if p.order.Field != DefaultAudioCodecOrder.Field {
+		query = query.Order(DefaultAudioCodecOrder.Field.toTerm(direction.OrderTermOption()))
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return query
+}
+
+func (p *audiocodecPager) orderExpr(query *AudioCodecQuery) sql.Querier {
+	direction := p.order.Direction
+	if p.reverse {
+		direction = direction.Reverse()
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(p.order.Field.column)
+	}
+	return sql.ExprFunc(func(b *sql.Builder) {
+		b.Ident(p.order.Field.column).Pad().WriteString(string(direction))
+		if p.order.Field != DefaultAudioCodecOrder.Field {
+			b.Comma().Ident(DefaultAudioCodecOrder.Field.column).Pad().WriteString(string(direction))
+		}
+	})
+}
+
+// Paginate executes the query and returns a relay based cursor connection to AudioCodec.
+func (ac *AudioCodecQuery) Paginate(
+	ctx context.Context, after *Cursor, first *int,
+	before *Cursor, last *int, opts ...AudioCodecPaginateOption,
+) (*AudioCodecConnection, error) {
+	if err := validateFirstLast(first, last); err != nil {
+		return nil, err
+	}
+	pager, err := newAudioCodecPager(opts, last != nil)
+	if err != nil {
+		return nil, err
+	}
+	if ac, err = pager.applyFilter(ac); err != nil {
+		return nil, err
+	}
+	conn := &AudioCodecConnection{Edges: []*AudioCodecEdge{}}
+	ignoredEdges := !hasCollectedField(ctx, edgesField)
+	if hasCollectedField(ctx, totalCountField) || hasCollectedField(ctx, pageInfoField) {
+		hasPagination := after != nil || first != nil || before != nil || last != nil
+		if hasPagination || ignoredEdges {
+			c := ac.Clone()
+			c.ctx.Fields = nil
+			if conn.TotalCount, err = c.Count(ctx); err != nil {
+				return nil, err
+			}
+			conn.PageInfo.HasNextPage = first != nil && conn.TotalCount > 0
+			conn.PageInfo.HasPreviousPage = last != nil && conn.TotalCount > 0
+		}
+	}
+	if ignoredEdges || (first != nil && *first == 0) || (last != nil && *last == 0) {
+		return conn, nil
+	}
+	if ac, err = pager.applyCursors(ac, after, before); err != nil {
+		return nil, err
+	}
+	limit := paginateLimit(first, last)
+	if limit != 0 {
+		ac.Limit(limit)
+	}
+	if field := collectedField(ctx, edgesField, nodeField); field != nil {
+		if err := ac.collectField(ctx, limit == 1, graphql.GetOperationContext(ctx), *field, []string{edgesField, nodeField}); err != nil {
+			return nil, err
+		}
+	}
+	ac = pager.applyOrder(ac)
+	nodes, err := ac.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	conn.build(nodes, pager, after, first, before, last)
+	return conn, nil
+}
+
+// AudioCodecOrderField defines the ordering field of AudioCodec.
+type AudioCodecOrderField struct {
+	// Value extracts the ordering value from the given AudioCodec.
+	Value    func(*AudioCodec) (ent.Value, error)
+	column   string // field or computed.
+	toTerm   func(...sql.OrderTermOption) audiocodec.OrderOption
+	toCursor func(*AudioCodec) Cursor
+}
+
+// AudioCodecOrder defines the ordering of AudioCodec.
+type AudioCodecOrder struct {
+	Direction OrderDirection        `json:"direction"`
+	Field     *AudioCodecOrderField `json:"field"`
+}
+
+// DefaultAudioCodecOrder is the default ordering of AudioCodec.
+var DefaultAudioCodecOrder = &AudioCodecOrder{
+	Direction: entgql.OrderDirectionAsc,
+	Field: &AudioCodecOrderField{
+		Value: func(ac *AudioCodec) (ent.Value, error) {
+			return ac.ID, nil
+		},
+		column: audiocodec.FieldID,
+		toTerm: audiocodec.ByID,
+		toCursor: func(ac *AudioCodec) Cursor {
+			return Cursor{ID: ac.ID}
+		},
+	},
+}
+
+// ToEdge converts AudioCodec into AudioCodecEdge.
+func (ac *AudioCodec) ToEdge(order *AudioCodecOrder) *AudioCodecEdge {
+	if order == nil {
+		order = DefaultAudioCodecOrder
+	}
+	return &AudioCodecEdge{
+		Node:   ac,
+		Cursor: order.Field.toCursor(ac),
+	}
 }
 
 // AudioTrackEdge is the edge representation of AudioTrack.

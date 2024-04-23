@@ -31,5 +31,6 @@ func (PlaySessionMedia) Edges() []ent.Edge {
 			Unique().
 			Required(),
 		edge.To("video_codecs", VideoCodec.Type),
+		edge.To("audio_codecs", AudioCodec.Type),
 	}
 }

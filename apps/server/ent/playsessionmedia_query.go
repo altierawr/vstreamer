@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/playsession"
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
@@ -30,11 +31,13 @@ type PlaySessionMediaQuery struct {
 	withVideo            *VideoQuery
 	withSession          *PlaySessionQuery
 	withVideoCodecs      *VideoCodecQuery
+	withAudioCodecs      *AudioCodecQuery
 	withFKs              bool
 	modifiers            []func(*sql.Selector)
 	loadTotal            []func(context.Context, []*PlaySessionMedia) error
 	withNamedAudioTracks map[string]*AudioTrackQuery
 	withNamedVideoCodecs map[string]*VideoCodecQuery
+	withNamedAudioCodecs map[string]*AudioCodecQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -152,6 +155,28 @@ func (psmq *PlaySessionMediaQuery) QueryVideoCodecs() *VideoCodecQuery {
 			sqlgraph.From(playsessionmedia.Table, playsessionmedia.FieldID, selector),
 			sqlgraph.To(videocodec.Table, videocodec.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, playsessionmedia.VideoCodecsTable, playsessionmedia.VideoCodecsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(psmq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryAudioCodecs chains the current query on the "audio_codecs" edge.
+func (psmq *PlaySessionMediaQuery) QueryAudioCodecs() *AudioCodecQuery {
+	query := (&AudioCodecClient{config: psmq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := psmq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := psmq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(playsessionmedia.Table, playsessionmedia.FieldID, selector),
+			sqlgraph.To(audiocodec.Table, audiocodec.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, playsessionmedia.AudioCodecsTable, playsessionmedia.AudioCodecsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(psmq.driver.Dialect(), step)
 		return fromU, nil
@@ -355,6 +380,7 @@ func (psmq *PlaySessionMediaQuery) Clone() *PlaySessionMediaQuery {
 		withVideo:       psmq.withVideo.Clone(),
 		withSession:     psmq.withSession.Clone(),
 		withVideoCodecs: psmq.withVideoCodecs.Clone(),
+		withAudioCodecs: psmq.withAudioCodecs.Clone(),
 		// clone intermediate query.
 		sql:  psmq.sql.Clone(),
 		path: psmq.path,
@@ -402,6 +428,17 @@ func (psmq *PlaySessionMediaQuery) WithVideoCodecs(opts ...func(*VideoCodecQuery
 		opt(query)
 	}
 	psmq.withVideoCodecs = query
+	return psmq
+}
+
+// WithAudioCodecs tells the query-builder to eager-load the nodes that are connected to
+// the "audio_codecs" edge. The optional arguments are used to configure the query builder of the edge.
+func (psmq *PlaySessionMediaQuery) WithAudioCodecs(opts ...func(*AudioCodecQuery)) *PlaySessionMediaQuery {
+	query := (&AudioCodecClient{config: psmq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	psmq.withAudioCodecs = query
 	return psmq
 }
 
@@ -484,11 +521,12 @@ func (psmq *PlaySessionMediaQuery) sqlAll(ctx context.Context, hooks ...queryHoo
 		nodes       = []*PlaySessionMedia{}
 		withFKs     = psmq.withFKs
 		_spec       = psmq.querySpec()
-		loadedTypes = [4]bool{
+		loadedTypes = [5]bool{
 			psmq.withAudioTracks != nil,
 			psmq.withVideo != nil,
 			psmq.withSession != nil,
 			psmq.withVideoCodecs != nil,
+			psmq.withAudioCodecs != nil,
 		}
 	)
 	if psmq.withVideo != nil || psmq.withSession != nil {
@@ -544,6 +582,13 @@ func (psmq *PlaySessionMediaQuery) sqlAll(ctx context.Context, hooks ...queryHoo
 			return nil, err
 		}
 	}
+	if query := psmq.withAudioCodecs; query != nil {
+		if err := psmq.loadAudioCodecs(ctx, query, nodes,
+			func(n *PlaySessionMedia) { n.Edges.AudioCodecs = []*AudioCodec{} },
+			func(n *PlaySessionMedia, e *AudioCodec) { n.Edges.AudioCodecs = append(n.Edges.AudioCodecs, e) }); err != nil {
+			return nil, err
+		}
+	}
 	for name, query := range psmq.withNamedAudioTracks {
 		if err := psmq.loadAudioTracks(ctx, query, nodes,
 			func(n *PlaySessionMedia) { n.appendNamedAudioTracks(name) },
@@ -555,6 +600,13 @@ func (psmq *PlaySessionMediaQuery) sqlAll(ctx context.Context, hooks ...queryHoo
 		if err := psmq.loadVideoCodecs(ctx, query, nodes,
 			func(n *PlaySessionMedia) { n.appendNamedVideoCodecs(name) },
 			func(n *PlaySessionMedia, e *VideoCodec) { n.appendNamedVideoCodecs(name, e) }); err != nil {
+			return nil, err
+		}
+	}
+	for name, query := range psmq.withNamedAudioCodecs {
+		if err := psmq.loadAudioCodecs(ctx, query, nodes,
+			func(n *PlaySessionMedia) { n.appendNamedAudioCodecs(name) },
+			func(n *PlaySessionMedia, e *AudioCodec) { n.appendNamedAudioCodecs(name, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -692,6 +744,37 @@ func (psmq *PlaySessionMediaQuery) loadVideoCodecs(ctx context.Context, query *V
 	}
 	return nil
 }
+func (psmq *PlaySessionMediaQuery) loadAudioCodecs(ctx context.Context, query *AudioCodecQuery, nodes []*PlaySessionMedia, init func(*PlaySessionMedia), assign func(*PlaySessionMedia, *AudioCodec)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*PlaySessionMedia)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.AudioCodec(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(playsessionmedia.AudioCodecsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.play_session_media_audio_codecs
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "play_session_media_audio_codecs" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "play_session_media_audio_codecs" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
 
 func (psmq *PlaySessionMediaQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := psmq.querySpec()
@@ -802,6 +885,20 @@ func (psmq *PlaySessionMediaQuery) WithNamedVideoCodecs(name string, opts ...fun
 		psmq.withNamedVideoCodecs = make(map[string]*VideoCodecQuery)
 	}
 	psmq.withNamedVideoCodecs[name] = query
+	return psmq
+}
+
+// WithNamedAudioCodecs tells the query-builder to eager-load the nodes that are connected to the "audio_codecs"
+// edge with the given name. The optional arguments are used to configure the query builder of the edge.
+func (psmq *PlaySessionMediaQuery) WithNamedAudioCodecs(name string, opts ...func(*AudioCodecQuery)) *PlaySessionMediaQuery {
+	query := (&AudioCodecClient{config: psmq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	if psmq.withNamedAudioCodecs == nil {
+		psmq.withNamedAudioCodecs = make(map[string]*AudioCodecQuery)
+	}
+	psmq.withNamedAudioCodecs[name] = query
 	return psmq
 }
 

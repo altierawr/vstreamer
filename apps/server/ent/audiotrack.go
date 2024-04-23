@@ -3,7 +3,6 @@
 package ent
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -26,8 +25,6 @@ type AudioTrack struct {
 	ChannelLayout string `json:"channel_layout,omitempty"`
 	// Language holds the value of the "language" field.
 	Language string `json:"language,omitempty"`
-	// Codecs holds the value of the "codecs" field.
-	Codecs []string `json:"codecs,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the AudioTrackQuery when eager-loading is set.
 	Edges                           AudioTrackEdges `json:"edges"`
@@ -37,13 +34,26 @@ type AudioTrack struct {
 
 // AudioTrackEdges holds the relations/edges for other nodes in the graph.
 type AudioTrackEdges struct {
+	// Codecs holds the value of the codecs edge.
+	Codecs []*AudioCodec `json:"codecs,omitempty"`
 	// Media holds the value of the media edge.
 	Media *PlaySessionMedia `json:"media,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 	// totalCount holds the count of the edges above.
-	totalCount [1]map[string]int
+	totalCount [2]map[string]int
+
+	namedCodecs map[string][]*AudioCodec
+}
+
+// CodecsOrErr returns the Codecs value or an error if the edge
+// was not loaded in eager-loading.
+func (e AudioTrackEdges) CodecsOrErr() ([]*AudioCodec, error) {
+	if e.loadedTypes[0] {
+		return e.Codecs, nil
+	}
+	return nil, &NotLoadedError{edge: "codecs"}
 }
 
 // MediaOrErr returns the Media value or an error if the edge
@@ -51,7 +61,7 @@ type AudioTrackEdges struct {
 func (e AudioTrackEdges) MediaOrErr() (*PlaySessionMedia, error) {
 	if e.Media != nil {
 		return e.Media, nil
-	} else if e.loadedTypes[0] {
+	} else if e.loadedTypes[1] {
 		return nil, &NotFoundError{label: playsessionmedia.Label}
 	}
 	return nil, &NotLoadedError{edge: "media"}
@@ -62,8 +72,6 @@ func (*AudioTrack) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case audiotrack.FieldCodecs:
-			values[i] = new([]byte)
 		case audiotrack.FieldID, audiotrack.FieldNrChannels:
 			values[i] = new(sql.NullInt64)
 		case audiotrack.FieldName, audiotrack.FieldChannelLayout, audiotrack.FieldLanguage:
@@ -115,14 +123,6 @@ func (at *AudioTrack) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				at.Language = value.String
 			}
-		case audiotrack.FieldCodecs:
-			if value, ok := values[i].(*[]byte); !ok {
-				return fmt.Errorf("unexpected type %T for field codecs", values[i])
-			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &at.Codecs); err != nil {
-					return fmt.Errorf("unmarshal field codecs: %w", err)
-				}
-			}
 		case audiotrack.ForeignKeys[0]:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for edge-field play_session_media_audio_tracks", value)
@@ -141,6 +141,11 @@ func (at *AudioTrack) assignValues(columns []string, values []any) error {
 // This includes values selected through modifiers, order, etc.
 func (at *AudioTrack) Value(name string) (ent.Value, error) {
 	return at.selectValues.Get(name)
+}
+
+// QueryCodecs queries the "codecs" edge of the AudioTrack entity.
+func (at *AudioTrack) QueryCodecs() *AudioCodecQuery {
+	return NewAudioTrackClient(at.config).QueryCodecs(at)
 }
 
 // QueryMedia queries the "media" edge of the AudioTrack entity.
@@ -182,11 +187,32 @@ func (at *AudioTrack) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("language=")
 	builder.WriteString(at.Language)
-	builder.WriteString(", ")
-	builder.WriteString("codecs=")
-	builder.WriteString(fmt.Sprintf("%v", at.Codecs))
 	builder.WriteByte(')')
 	return builder.String()
+}
+
+// NamedCodecs returns the Codecs named value or an error if the edge was not
+// loaded in eager-loading with this name.
+func (at *AudioTrack) NamedCodecs(name string) ([]*AudioCodec, error) {
+	if at.Edges.namedCodecs == nil {
+		return nil, &NotLoadedError{edge: name}
+	}
+	nodes, ok := at.Edges.namedCodecs[name]
+	if !ok {
+		return nil, &NotLoadedError{edge: name}
+	}
+	return nodes, nil
+}
+
+func (at *AudioTrack) appendNamedCodecs(name string, edges ...*AudioCodec) {
+	if at.Edges.namedCodecs == nil {
+		at.Edges.namedCodecs = make(map[string][]*AudioCodec)
+	}
+	if len(edges) == 0 {
+		at.Edges.namedCodecs[name] = []*AudioCodec{}
+	} else {
+		at.Edges.namedCodecs[name] = append(at.Edges.namedCodecs[name], edges...)
+	}
 }
 
 // AudioTracks is a parsable slice of AudioTrack.

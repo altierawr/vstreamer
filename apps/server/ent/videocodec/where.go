@@ -213,6 +213,29 @@ func DynamicRangeNotIn(vs ...DynamicRange) predicate.VideoCodec {
 	return predicate.VideoCodec(sql.FieldNotIn(FieldDynamicRange, vs...))
 }
 
+// HasStreams applies the HasEdge predicate on the "streams" edge.
+func HasStreams() predicate.VideoCodec {
+	return predicate.VideoCodec(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, StreamsTable, StreamsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasStreamsWith applies the HasEdge predicate on the "streams" edge with a given conditions (other predicates).
+func HasStreamsWith(preds ...predicate.Stream) predicate.VideoCodec {
+	return predicate.VideoCodec(func(s *sql.Selector) {
+		step := newStreamsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasMedia applies the HasEdge predicate on the "media" edge.
 func HasMedia() predicate.VideoCodec {
 	return predicate.VideoCodec(func(s *sql.Selector) {

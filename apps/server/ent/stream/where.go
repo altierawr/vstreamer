@@ -4,6 +4,7 @@ package stream
 
 import (
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/altierawr/vstreamer/ent/predicate"
 )
 
@@ -65,16 +66,6 @@ func Height(v int) predicate.Stream {
 // Container applies equality check predicate on the "container" field. It's identical to ContainerEQ.
 func Container(v string) predicate.Stream {
 	return predicate.Stream(sql.FieldEQ(FieldContainer, v))
-}
-
-// VideoCodec applies equality check predicate on the "video_codec" field. It's identical to VideoCodecEQ.
-func VideoCodec(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldEQ(FieldVideoCodec, v))
-}
-
-// AudioCodec applies equality check predicate on the "audio_codec" field. It's identical to AudioCodecEQ.
-func AudioCodec(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldEQ(FieldAudioCodec, v))
 }
 
 // SegmentDuration applies equality check predicate on the "segment_duration" field. It's identical to SegmentDurationEQ.
@@ -227,136 +218,6 @@ func ContainerContainsFold(v string) predicate.Stream {
 	return predicate.Stream(sql.FieldContainsFold(FieldContainer, v))
 }
 
-// VideoCodecEQ applies the EQ predicate on the "video_codec" field.
-func VideoCodecEQ(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldEQ(FieldVideoCodec, v))
-}
-
-// VideoCodecNEQ applies the NEQ predicate on the "video_codec" field.
-func VideoCodecNEQ(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldNEQ(FieldVideoCodec, v))
-}
-
-// VideoCodecIn applies the In predicate on the "video_codec" field.
-func VideoCodecIn(vs ...string) predicate.Stream {
-	return predicate.Stream(sql.FieldIn(FieldVideoCodec, vs...))
-}
-
-// VideoCodecNotIn applies the NotIn predicate on the "video_codec" field.
-func VideoCodecNotIn(vs ...string) predicate.Stream {
-	return predicate.Stream(sql.FieldNotIn(FieldVideoCodec, vs...))
-}
-
-// VideoCodecGT applies the GT predicate on the "video_codec" field.
-func VideoCodecGT(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldGT(FieldVideoCodec, v))
-}
-
-// VideoCodecGTE applies the GTE predicate on the "video_codec" field.
-func VideoCodecGTE(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldGTE(FieldVideoCodec, v))
-}
-
-// VideoCodecLT applies the LT predicate on the "video_codec" field.
-func VideoCodecLT(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldLT(FieldVideoCodec, v))
-}
-
-// VideoCodecLTE applies the LTE predicate on the "video_codec" field.
-func VideoCodecLTE(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldLTE(FieldVideoCodec, v))
-}
-
-// VideoCodecContains applies the Contains predicate on the "video_codec" field.
-func VideoCodecContains(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldContains(FieldVideoCodec, v))
-}
-
-// VideoCodecHasPrefix applies the HasPrefix predicate on the "video_codec" field.
-func VideoCodecHasPrefix(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldHasPrefix(FieldVideoCodec, v))
-}
-
-// VideoCodecHasSuffix applies the HasSuffix predicate on the "video_codec" field.
-func VideoCodecHasSuffix(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldHasSuffix(FieldVideoCodec, v))
-}
-
-// VideoCodecEqualFold applies the EqualFold predicate on the "video_codec" field.
-func VideoCodecEqualFold(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldEqualFold(FieldVideoCodec, v))
-}
-
-// VideoCodecContainsFold applies the ContainsFold predicate on the "video_codec" field.
-func VideoCodecContainsFold(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldContainsFold(FieldVideoCodec, v))
-}
-
-// AudioCodecEQ applies the EQ predicate on the "audio_codec" field.
-func AudioCodecEQ(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldEQ(FieldAudioCodec, v))
-}
-
-// AudioCodecNEQ applies the NEQ predicate on the "audio_codec" field.
-func AudioCodecNEQ(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldNEQ(FieldAudioCodec, v))
-}
-
-// AudioCodecIn applies the In predicate on the "audio_codec" field.
-func AudioCodecIn(vs ...string) predicate.Stream {
-	return predicate.Stream(sql.FieldIn(FieldAudioCodec, vs...))
-}
-
-// AudioCodecNotIn applies the NotIn predicate on the "audio_codec" field.
-func AudioCodecNotIn(vs ...string) predicate.Stream {
-	return predicate.Stream(sql.FieldNotIn(FieldAudioCodec, vs...))
-}
-
-// AudioCodecGT applies the GT predicate on the "audio_codec" field.
-func AudioCodecGT(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldGT(FieldAudioCodec, v))
-}
-
-// AudioCodecGTE applies the GTE predicate on the "audio_codec" field.
-func AudioCodecGTE(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldGTE(FieldAudioCodec, v))
-}
-
-// AudioCodecLT applies the LT predicate on the "audio_codec" field.
-func AudioCodecLT(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldLT(FieldAudioCodec, v))
-}
-
-// AudioCodecLTE applies the LTE predicate on the "audio_codec" field.
-func AudioCodecLTE(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldLTE(FieldAudioCodec, v))
-}
-
-// AudioCodecContains applies the Contains predicate on the "audio_codec" field.
-func AudioCodecContains(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldContains(FieldAudioCodec, v))
-}
-
-// AudioCodecHasPrefix applies the HasPrefix predicate on the "audio_codec" field.
-func AudioCodecHasPrefix(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldHasPrefix(FieldAudioCodec, v))
-}
-
-// AudioCodecHasSuffix applies the HasSuffix predicate on the "audio_codec" field.
-func AudioCodecHasSuffix(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldHasSuffix(FieldAudioCodec, v))
-}
-
-// AudioCodecEqualFold applies the EqualFold predicate on the "audio_codec" field.
-func AudioCodecEqualFold(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldEqualFold(FieldAudioCodec, v))
-}
-
-// AudioCodecContainsFold applies the ContainsFold predicate on the "audio_codec" field.
-func AudioCodecContainsFold(v string) predicate.Stream {
-	return predicate.Stream(sql.FieldContainsFold(FieldAudioCodec, v))
-}
-
 // SegmentDurationEQ applies the EQ predicate on the "segment_duration" field.
 func SegmentDurationEQ(v int) predicate.Stream {
 	return predicate.Stream(sql.FieldEQ(FieldSegmentDuration, v))
@@ -435,6 +296,52 @@ func TypeIn(vs ...Type) predicate.Stream {
 // TypeNotIn applies the NotIn predicate on the "type" field.
 func TypeNotIn(vs ...Type) predicate.Stream {
 	return predicate.Stream(sql.FieldNotIn(FieldType, vs...))
+}
+
+// HasVideoCodec applies the HasEdge predicate on the "video_codec" edge.
+func HasVideoCodec() predicate.Stream {
+	return predicate.Stream(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, VideoCodecTable, VideoCodecColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasVideoCodecWith applies the HasEdge predicate on the "video_codec" edge with a given conditions (other predicates).
+func HasVideoCodecWith(preds ...predicate.VideoCodec) predicate.Stream {
+	return predicate.Stream(func(s *sql.Selector) {
+		step := newVideoCodecStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasAudioCodec applies the HasEdge predicate on the "audio_codec" edge.
+func HasAudioCodec() predicate.Stream {
+	return predicate.Stream(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, AudioCodecTable, AudioCodecColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasAudioCodecWith applies the HasEdge predicate on the "audio_codec" edge with a given conditions (other predicates).
+func HasAudioCodecWith(preds ...predicate.AudioCodec) predicate.Stream {
+	return predicate.Stream(func(s *sql.Selector) {
+		step := newAudioCodecStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
 }
 
 // And groups predicates with the AND operator between them.

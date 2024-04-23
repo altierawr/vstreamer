@@ -15,6 +15,7 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/library"
 	"github.com/altierawr/vstreamer/ent/playbackclient"
@@ -30,6 +31,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// AudioCodec is the client for interacting with the AudioCodec builders.
+	AudioCodec *AudioCodecClient
 	// AudioTrack is the client for interacting with the AudioTrack builders.
 	AudioTrack *AudioTrackClient
 	// Library is the client for interacting with the Library builders.
@@ -59,6 +62,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.AudioCodec = NewAudioCodecClient(c.config)
 	c.AudioTrack = NewAudioTrackClient(c.config)
 	c.Library = NewLibraryClient(c.config)
 	c.PlaySession = NewPlaySessionClient(c.config)
@@ -159,6 +163,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	return &Tx{
 		ctx:              ctx,
 		config:           cfg,
+		AudioCodec:       NewAudioCodecClient(cfg),
 		AudioTrack:       NewAudioTrackClient(cfg),
 		Library:          NewLibraryClient(cfg),
 		PlaySession:      NewPlaySessionClient(cfg),
@@ -186,6 +191,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	return &Tx{
 		ctx:              ctx,
 		config:           cfg,
+		AudioCodec:       NewAudioCodecClient(cfg),
 		AudioTrack:       NewAudioTrackClient(cfg),
 		Library:          NewLibraryClient(cfg),
 		PlaySession:      NewPlaySessionClient(cfg),
@@ -200,7 +206,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		AudioTrack.
+//		AudioCodec.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -223,8 +229,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AudioTrack, c.Library, c.PlaySession, c.PlaySessionMedia, c.PlaybackClient,
-		c.Stream, c.Video, c.VideoCodec,
+		c.AudioCodec, c.AudioTrack, c.Library, c.PlaySession, c.PlaySessionMedia,
+		c.PlaybackClient, c.Stream, c.Video, c.VideoCodec,
 	} {
 		n.Use(hooks...)
 	}
@@ -234,8 +240,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AudioTrack, c.Library, c.PlaySession, c.PlaySessionMedia, c.PlaybackClient,
-		c.Stream, c.Video, c.VideoCodec,
+		c.AudioCodec, c.AudioTrack, c.Library, c.PlaySession, c.PlaySessionMedia,
+		c.PlaybackClient, c.Stream, c.Video, c.VideoCodec,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -244,6 +250,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *AudioCodecMutation:
+		return c.AudioCodec.mutate(ctx, m)
 	case *AudioTrackMutation:
 		return c.AudioTrack.mutate(ctx, m)
 	case *LibraryMutation:
@@ -262,6 +270,187 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.VideoCodec.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// AudioCodecClient is a client for the AudioCodec schema.
+type AudioCodecClient struct {
+	config
+}
+
+// NewAudioCodecClient returns a client for the AudioCodec from the given config.
+func NewAudioCodecClient(c config) *AudioCodecClient {
+	return &AudioCodecClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `audiocodec.Hooks(f(g(h())))`.
+func (c *AudioCodecClient) Use(hooks ...Hook) {
+	c.hooks.AudioCodec = append(c.hooks.AudioCodec, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `audiocodec.Intercept(f(g(h())))`.
+func (c *AudioCodecClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AudioCodec = append(c.inters.AudioCodec, interceptors...)
+}
+
+// Create returns a builder for creating a AudioCodec entity.
+func (c *AudioCodecClient) Create() *AudioCodecCreate {
+	mutation := newAudioCodecMutation(c.config, OpCreate)
+	return &AudioCodecCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AudioCodec entities.
+func (c *AudioCodecClient) CreateBulk(builders ...*AudioCodecCreate) *AudioCodecCreateBulk {
+	return &AudioCodecCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AudioCodecClient) MapCreateBulk(slice any, setFunc func(*AudioCodecCreate, int)) *AudioCodecCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AudioCodecCreateBulk{err: fmt.Errorf("calling to AudioCodecClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AudioCodecCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AudioCodecCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AudioCodec.
+func (c *AudioCodecClient) Update() *AudioCodecUpdate {
+	mutation := newAudioCodecMutation(c.config, OpUpdate)
+	return &AudioCodecUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AudioCodecClient) UpdateOne(ac *AudioCodec) *AudioCodecUpdateOne {
+	mutation := newAudioCodecMutation(c.config, OpUpdateOne, withAudioCodec(ac))
+	return &AudioCodecUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AudioCodecClient) UpdateOneID(id int) *AudioCodecUpdateOne {
+	mutation := newAudioCodecMutation(c.config, OpUpdateOne, withAudioCodecID(id))
+	return &AudioCodecUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AudioCodec.
+func (c *AudioCodecClient) Delete() *AudioCodecDelete {
+	mutation := newAudioCodecMutation(c.config, OpDelete)
+	return &AudioCodecDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AudioCodecClient) DeleteOne(ac *AudioCodec) *AudioCodecDeleteOne {
+	return c.DeleteOneID(ac.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AudioCodecClient) DeleteOneID(id int) *AudioCodecDeleteOne {
+	builder := c.Delete().Where(audiocodec.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AudioCodecDeleteOne{builder}
+}
+
+// Query returns a query builder for AudioCodec.
+func (c *AudioCodecClient) Query() *AudioCodecQuery {
+	return &AudioCodecQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAudioCodec},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AudioCodec entity by its id.
+func (c *AudioCodecClient) Get(ctx context.Context, id int) (*AudioCodec, error) {
+	return c.Query().Where(audiocodec.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AudioCodecClient) GetX(ctx context.Context, id int) *AudioCodec {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryStreams queries the streams edge of a AudioCodec.
+func (c *AudioCodecClient) QueryStreams(ac *AudioCodec) *StreamQuery {
+	query := (&StreamClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := ac.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(audiocodec.Table, audiocodec.FieldID, id),
+			sqlgraph.To(stream.Table, stream.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, audiocodec.StreamsTable, audiocodec.StreamsColumn),
+		)
+		fromV = sqlgraph.Neighbors(ac.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAudioTracks queries the audio_tracks edge of a AudioCodec.
+func (c *AudioCodecClient) QueryAudioTracks(ac *AudioCodec) *AudioTrackQuery {
+	query := (&AudioTrackClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := ac.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(audiocodec.Table, audiocodec.FieldID, id),
+			sqlgraph.To(audiotrack.Table, audiotrack.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, audiocodec.AudioTracksTable, audiocodec.AudioTracksPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(ac.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryMedia queries the media edge of a AudioCodec.
+func (c *AudioCodecClient) QueryMedia(ac *AudioCodec) *PlaySessionMediaQuery {
+	query := (&PlaySessionMediaClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := ac.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(audiocodec.Table, audiocodec.FieldID, id),
+			sqlgraph.To(playsessionmedia.Table, playsessionmedia.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, audiocodec.MediaTable, audiocodec.MediaColumn),
+		)
+		fromV = sqlgraph.Neighbors(ac.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *AudioCodecClient) Hooks() []Hook {
+	return c.hooks.AudioCodec
+}
+
+// Interceptors returns the client interceptors.
+func (c *AudioCodecClient) Interceptors() []Interceptor {
+	return c.inters.AudioCodec
+}
+
+func (c *AudioCodecClient) mutate(ctx context.Context, m *AudioCodecMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AudioCodecCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AudioCodecUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AudioCodecUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AudioCodecDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AudioCodec mutation op: %q", m.Op())
 	}
 }
 
@@ -371,6 +560,22 @@ func (c *AudioTrackClient) GetX(ctx context.Context, id int) *AudioTrack {
 		panic(err)
 	}
 	return obj
+}
+
+// QueryCodecs queries the codecs edge of a AudioTrack.
+func (c *AudioTrackClient) QueryCodecs(at *AudioTrack) *AudioCodecQuery {
+	query := (&AudioCodecClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := at.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(audiotrack.Table, audiotrack.FieldID, id),
+			sqlgraph.To(audiocodec.Table, audiocodec.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, audiotrack.CodecsTable, audiotrack.CodecsPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(at.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
 }
 
 // QueryMedia queries the media edge of a AudioTrack.
@@ -900,6 +1105,22 @@ func (c *PlaySessionMediaClient) QueryVideoCodecs(psm *PlaySessionMedia) *VideoC
 	return query
 }
 
+// QueryAudioCodecs queries the audio_codecs edge of a PlaySessionMedia.
+func (c *PlaySessionMediaClient) QueryAudioCodecs(psm *PlaySessionMedia) *AudioCodecQuery {
+	query := (&AudioCodecClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := psm.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(playsessionmedia.Table, playsessionmedia.FieldID, id),
+			sqlgraph.To(audiocodec.Table, audiocodec.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, playsessionmedia.AudioCodecsTable, playsessionmedia.AudioCodecsColumn),
+		)
+		fromV = sqlgraph.Neighbors(psm.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *PlaySessionMediaClient) Hooks() []Hook {
 	return c.hooks.PlaySessionMedia
@@ -1180,6 +1401,38 @@ func (c *StreamClient) GetX(ctx context.Context, id int) *Stream {
 		panic(err)
 	}
 	return obj
+}
+
+// QueryVideoCodec queries the video_codec edge of a Stream.
+func (c *StreamClient) QueryVideoCodec(s *Stream) *VideoCodecQuery {
+	query := (&VideoCodecClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := s.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(stream.Table, stream.FieldID, id),
+			sqlgraph.To(videocodec.Table, videocodec.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, stream.VideoCodecTable, stream.VideoCodecColumn),
+		)
+		fromV = sqlgraph.Neighbors(s.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAudioCodec queries the audio_codec edge of a Stream.
+func (c *StreamClient) QueryAudioCodec(s *Stream) *AudioCodecQuery {
+	query := (&AudioCodecClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := s.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(stream.Table, stream.FieldID, id),
+			sqlgraph.To(audiocodec.Table, audiocodec.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, stream.AudioCodecTable, stream.AudioCodecColumn),
+		)
+		fromV = sqlgraph.Neighbors(s.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
 }
 
 // Hooks returns the client hooks.
@@ -1480,6 +1733,22 @@ func (c *VideoCodecClient) GetX(ctx context.Context, id int) *VideoCodec {
 	return obj
 }
 
+// QueryStreams queries the streams edge of a VideoCodec.
+func (c *VideoCodecClient) QueryStreams(vc *VideoCodec) *StreamQuery {
+	query := (&StreamClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := vc.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(videocodec.Table, videocodec.FieldID, id),
+			sqlgraph.To(stream.Table, stream.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, videocodec.StreamsTable, videocodec.StreamsColumn),
+		)
+		fromV = sqlgraph.Neighbors(vc.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryMedia queries the media edge of a VideoCodec.
 func (c *VideoCodecClient) QueryMedia(vc *VideoCodec) *PlaySessionMediaQuery {
 	query := (&PlaySessionMediaClient{config: c.config}).Query()
@@ -1524,11 +1793,11 @@ func (c *VideoCodecClient) mutate(ctx context.Context, m *VideoCodecMutation) (V
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AudioTrack, Library, PlaySession, PlaySessionMedia, PlaybackClient, Stream,
-		Video, VideoCodec []ent.Hook
+		AudioCodec, AudioTrack, Library, PlaySession, PlaySessionMedia, PlaybackClient,
+		Stream, Video, VideoCodec []ent.Hook
 	}
 	inters struct {
-		AudioTrack, Library, PlaySession, PlaySessionMedia, PlaybackClient, Stream,
-		Video, VideoCodec []ent.Interceptor
+		AudioCodec, AudioTrack, Library, PlaySession, PlaySessionMedia, PlaybackClient,
+		Stream, Video, VideoCodec []ent.Interceptor
 	}
 )

@@ -8,6 +8,27 @@ import (
 )
 
 var (
+	// AudioCodecsColumns holds the columns for the "audio_codecs" table.
+	AudioCodecsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString},
+		{Name: "mime", Type: field.TypeString},
+		{Name: "play_session_media_audio_codecs", Type: field.TypeInt, Nullable: true},
+	}
+	// AudioCodecsTable holds the schema information for the "audio_codecs" table.
+	AudioCodecsTable = &schema.Table{
+		Name:       "audio_codecs",
+		Columns:    AudioCodecsColumns,
+		PrimaryKey: []*schema.Column{AudioCodecsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "audio_codecs_play_session_media_audio_codecs",
+				Columns:    []*schema.Column{AudioCodecsColumns[3]},
+				RefColumns: []*schema.Column{PlaySessionMediaColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+	}
 	// AudioTracksColumns holds the columns for the "audio_tracks" table.
 	AudioTracksColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -15,7 +36,6 @@ var (
 		{Name: "nr_channels", Type: field.TypeInt},
 		{Name: "channel_layout", Type: field.TypeString},
 		{Name: "language", Type: field.TypeString, Nullable: true},
-		{Name: "codecs", Type: field.TypeJSON},
 		{Name: "play_session_media_audio_tracks", Type: field.TypeInt},
 	}
 	// AudioTracksTable holds the schema information for the "audio_tracks" table.
@@ -26,7 +46,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "audio_tracks_play_session_media_audio_tracks",
-				Columns:    []*schema.Column{AudioTracksColumns[6]},
+				Columns:    []*schema.Column{AudioTracksColumns[5]},
 				RefColumns: []*schema.Column{PlaySessionMediaColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -109,17 +129,31 @@ var (
 		{Name: "width", Type: field.TypeInt},
 		{Name: "height", Type: field.TypeInt},
 		{Name: "container", Type: field.TypeString},
-		{Name: "video_codec", Type: field.TypeString},
-		{Name: "audio_codec", Type: field.TypeString},
 		{Name: "segment_duration", Type: field.TypeInt},
 		{Name: "quality", Type: field.TypeEnum, Enums: []string{"maximum", "medium", "low"}},
 		{Name: "type", Type: field.TypeEnum, Enums: []string{"direct", "remux", "video_transcode", "audio_transcode", "full_transcode"}},
+		{Name: "audio_codec_streams", Type: field.TypeInt, Nullable: true},
+		{Name: "video_codec_streams", Type: field.TypeInt, Nullable: true},
 	}
 	// StreamsTable holds the schema information for the "streams" table.
 	StreamsTable = &schema.Table{
 		Name:       "streams",
 		Columns:    StreamsColumns,
 		PrimaryKey: []*schema.Column{StreamsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "streams_audio_codecs_streams",
+				Columns:    []*schema.Column{StreamsColumns[7]},
+				RefColumns: []*schema.Column{AudioCodecsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "streams_video_codecs_streams",
+				Columns:    []*schema.Column{StreamsColumns[8]},
+				RefColumns: []*schema.Column{VideoCodecsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
 	}
 	// VideosColumns holds the columns for the "videos" table.
 	VideosColumns = []*schema.Column{
@@ -164,8 +198,34 @@ var (
 			},
 		},
 	}
+	// AudioTrackCodecsColumns holds the columns for the "audio_track_codecs" table.
+	AudioTrackCodecsColumns = []*schema.Column{
+		{Name: "audio_track_id", Type: field.TypeInt},
+		{Name: "audio_codec_id", Type: field.TypeInt},
+	}
+	// AudioTrackCodecsTable holds the schema information for the "audio_track_codecs" table.
+	AudioTrackCodecsTable = &schema.Table{
+		Name:       "audio_track_codecs",
+		Columns:    AudioTrackCodecsColumns,
+		PrimaryKey: []*schema.Column{AudioTrackCodecsColumns[0], AudioTrackCodecsColumns[1]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "audio_track_codecs_audio_track_id",
+				Columns:    []*schema.Column{AudioTrackCodecsColumns[0]},
+				RefColumns: []*schema.Column{AudioTracksColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "audio_track_codecs_audio_codec_id",
+				Columns:    []*schema.Column{AudioTrackCodecsColumns[1]},
+				RefColumns: []*schema.Column{AudioCodecsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AudioCodecsTable,
 		AudioTracksTable,
 		LibrariesTable,
 		PlaySessionsTable,
@@ -174,14 +234,20 @@ var (
 		StreamsTable,
 		VideosTable,
 		VideoCodecsTable,
+		AudioTrackCodecsTable,
 	}
 )
 
 func init() {
+	AudioCodecsTable.ForeignKeys[0].RefTable = PlaySessionMediaTable
 	AudioTracksTable.ForeignKeys[0].RefTable = PlaySessionMediaTable
 	PlaySessionMediaTable.ForeignKeys[0].RefTable = PlaySessionsTable
 	PlaySessionMediaTable.ForeignKeys[1].RefTable = VideosTable
 	PlaybackClientsTable.ForeignKeys[0].RefTable = PlaySessionsTable
+	StreamsTable.ForeignKeys[0].RefTable = AudioCodecsTable
+	StreamsTable.ForeignKeys[1].RefTable = VideoCodecsTable
 	VideosTable.ForeignKeys[0].RefTable = LibrariesTable
 	VideoCodecsTable.ForeignKeys[0].RefTable = PlaySessionMediaTable
+	AudioTrackCodecsTable.ForeignKeys[0].RefTable = AudioTracksTable
+	AudioTrackCodecsTable.ForeignKeys[1].RefTable = AudioCodecsTable
 }

@@ -13,7 +13,8 @@ type VideoPreset struct {
 
 type AudioPreset struct {
 	Codec      string
-	FfmpegArgs string
+	Mime       string
+	FfmpegArgs []string
 }
 
 var Av1HDRPreset = VideoPreset{
@@ -40,9 +41,8 @@ var Vp9SDRPreset = VideoPreset{
 	FfmpegArgs: []string{},
 }
 
-var TranscodingAudioCodecs = []AudioPreset{
-	{
-		Codec:      "flac",
-		FfmpegArgs: "",
-	},
+var FlacPreset = AudioPreset{
+	Codec:      "flac",
+	Mime:       "flac",
+	FfmpegArgs: []string{},
 }

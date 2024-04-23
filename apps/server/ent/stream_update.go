@@ -10,8 +10,10 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/predicate"
 	"github.com/altierawr/vstreamer/ent/stream"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
 // StreamUpdate is the builder for updating Stream entities.
@@ -83,34 +85,6 @@ func (su *StreamUpdate) SetNillableContainer(s *string) *StreamUpdate {
 	return su
 }
 
-// SetVideoCodec sets the "video_codec" field.
-func (su *StreamUpdate) SetVideoCodec(s string) *StreamUpdate {
-	su.mutation.SetVideoCodec(s)
-	return su
-}
-
-// SetNillableVideoCodec sets the "video_codec" field if the given value is not nil.
-func (su *StreamUpdate) SetNillableVideoCodec(s *string) *StreamUpdate {
-	if s != nil {
-		su.SetVideoCodec(*s)
-	}
-	return su
-}
-
-// SetAudioCodec sets the "audio_codec" field.
-func (su *StreamUpdate) SetAudioCodec(s string) *StreamUpdate {
-	su.mutation.SetAudioCodec(s)
-	return su
-}
-
-// SetNillableAudioCodec sets the "audio_codec" field if the given value is not nil.
-func (su *StreamUpdate) SetNillableAudioCodec(s *string) *StreamUpdate {
-	if s != nil {
-		su.SetAudioCodec(*s)
-	}
-	return su
-}
-
 // SetSegmentDuration sets the "segment_duration" field.
 func (su *StreamUpdate) SetSegmentDuration(i int) *StreamUpdate {
 	su.mutation.ResetSegmentDuration()
@@ -160,9 +134,59 @@ func (su *StreamUpdate) SetNillableType(s *stream.Type) *StreamUpdate {
 	return su
 }
 
+// SetVideoCodecID sets the "video_codec" edge to the VideoCodec entity by ID.
+func (su *StreamUpdate) SetVideoCodecID(id int) *StreamUpdate {
+	su.mutation.SetVideoCodecID(id)
+	return su
+}
+
+// SetNillableVideoCodecID sets the "video_codec" edge to the VideoCodec entity by ID if the given value is not nil.
+func (su *StreamUpdate) SetNillableVideoCodecID(id *int) *StreamUpdate {
+	if id != nil {
+		su = su.SetVideoCodecID(*id)
+	}
+	return su
+}
+
+// SetVideoCodec sets the "video_codec" edge to the VideoCodec entity.
+func (su *StreamUpdate) SetVideoCodec(v *VideoCodec) *StreamUpdate {
+	return su.SetVideoCodecID(v.ID)
+}
+
+// SetAudioCodecID sets the "audio_codec" edge to the AudioCodec entity by ID.
+func (su *StreamUpdate) SetAudioCodecID(id int) *StreamUpdate {
+	su.mutation.SetAudioCodecID(id)
+	return su
+}
+
+// SetNillableAudioCodecID sets the "audio_codec" edge to the AudioCodec entity by ID if the given value is not nil.
+func (su *StreamUpdate) SetNillableAudioCodecID(id *int) *StreamUpdate {
+	if id != nil {
+		su = su.SetAudioCodecID(*id)
+	}
+	return su
+}
+
+// SetAudioCodec sets the "audio_codec" edge to the AudioCodec entity.
+func (su *StreamUpdate) SetAudioCodec(a *AudioCodec) *StreamUpdate {
+	return su.SetAudioCodecID(a.ID)
+}
+
 // Mutation returns the StreamMutation object of the builder.
 func (su *StreamUpdate) Mutation() *StreamMutation {
 	return su.mutation
+}
+
+// ClearVideoCodec clears the "video_codec" edge to the VideoCodec entity.
+func (su *StreamUpdate) ClearVideoCodec() *StreamUpdate {
+	su.mutation.ClearVideoCodec()
+	return su
+}
+
+// ClearAudioCodec clears the "audio_codec" edge to the AudioCodec entity.
+func (su *StreamUpdate) ClearAudioCodec() *StreamUpdate {
+	su.mutation.ClearAudioCodec()
+	return su
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -234,12 +258,6 @@ func (su *StreamUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if value, ok := su.mutation.Container(); ok {
 		_spec.SetField(stream.FieldContainer, field.TypeString, value)
 	}
-	if value, ok := su.mutation.VideoCodec(); ok {
-		_spec.SetField(stream.FieldVideoCodec, field.TypeString, value)
-	}
-	if value, ok := su.mutation.AudioCodec(); ok {
-		_spec.SetField(stream.FieldAudioCodec, field.TypeString, value)
-	}
 	if value, ok := su.mutation.SegmentDuration(); ok {
 		_spec.SetField(stream.FieldSegmentDuration, field.TypeInt, value)
 	}
@@ -251,6 +269,64 @@ func (su *StreamUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	}
 	if value, ok := su.mutation.GetType(); ok {
 		_spec.SetField(stream.FieldType, field.TypeEnum, value)
+	}
+	if su.mutation.VideoCodecCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   stream.VideoCodecTable,
+			Columns: []string{stream.VideoCodecColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := su.mutation.VideoCodecIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   stream.VideoCodecTable,
+			Columns: []string{stream.VideoCodecColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if su.mutation.AudioCodecCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   stream.AudioCodecTable,
+			Columns: []string{stream.AudioCodecColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := su.mutation.AudioCodecIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   stream.AudioCodecTable,
+			Columns: []string{stream.AudioCodecColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, su.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -328,34 +404,6 @@ func (suo *StreamUpdateOne) SetNillableContainer(s *string) *StreamUpdateOne {
 	return suo
 }
 
-// SetVideoCodec sets the "video_codec" field.
-func (suo *StreamUpdateOne) SetVideoCodec(s string) *StreamUpdateOne {
-	suo.mutation.SetVideoCodec(s)
-	return suo
-}
-
-// SetNillableVideoCodec sets the "video_codec" field if the given value is not nil.
-func (suo *StreamUpdateOne) SetNillableVideoCodec(s *string) *StreamUpdateOne {
-	if s != nil {
-		suo.SetVideoCodec(*s)
-	}
-	return suo
-}
-
-// SetAudioCodec sets the "audio_codec" field.
-func (suo *StreamUpdateOne) SetAudioCodec(s string) *StreamUpdateOne {
-	suo.mutation.SetAudioCodec(s)
-	return suo
-}
-
-// SetNillableAudioCodec sets the "audio_codec" field if the given value is not nil.
-func (suo *StreamUpdateOne) SetNillableAudioCodec(s *string) *StreamUpdateOne {
-	if s != nil {
-		suo.SetAudioCodec(*s)
-	}
-	return suo
-}
-
 // SetSegmentDuration sets the "segment_duration" field.
 func (suo *StreamUpdateOne) SetSegmentDuration(i int) *StreamUpdateOne {
 	suo.mutation.ResetSegmentDuration()
@@ -405,9 +453,59 @@ func (suo *StreamUpdateOne) SetNillableType(s *stream.Type) *StreamUpdateOne {
 	return suo
 }
 
+// SetVideoCodecID sets the "video_codec" edge to the VideoCodec entity by ID.
+func (suo *StreamUpdateOne) SetVideoCodecID(id int) *StreamUpdateOne {
+	suo.mutation.SetVideoCodecID(id)
+	return suo
+}
+
+// SetNillableVideoCodecID sets the "video_codec" edge to the VideoCodec entity by ID if the given value is not nil.
+func (suo *StreamUpdateOne) SetNillableVideoCodecID(id *int) *StreamUpdateOne {
+	if id != nil {
+		suo = suo.SetVideoCodecID(*id)
+	}
+	return suo
+}
+
+// SetVideoCodec sets the "video_codec" edge to the VideoCodec entity.
+func (suo *StreamUpdateOne) SetVideoCodec(v *VideoCodec) *StreamUpdateOne {
+	return suo.SetVideoCodecID(v.ID)
+}
+
+// SetAudioCodecID sets the "audio_codec" edge to the AudioCodec entity by ID.
+func (suo *StreamUpdateOne) SetAudioCodecID(id int) *StreamUpdateOne {
+	suo.mutation.SetAudioCodecID(id)
+	return suo
+}
+
+// SetNillableAudioCodecID sets the "audio_codec" edge to the AudioCodec entity by ID if the given value is not nil.
+func (suo *StreamUpdateOne) SetNillableAudioCodecID(id *int) *StreamUpdateOne {
+	if id != nil {
+		suo = suo.SetAudioCodecID(*id)
+	}
+	return suo
+}
+
+// SetAudioCodec sets the "audio_codec" edge to the AudioCodec entity.
+func (suo *StreamUpdateOne) SetAudioCodec(a *AudioCodec) *StreamUpdateOne {
+	return suo.SetAudioCodecID(a.ID)
+}
+
 // Mutation returns the StreamMutation object of the builder.
 func (suo *StreamUpdateOne) Mutation() *StreamMutation {
 	return suo.mutation
+}
+
+// ClearVideoCodec clears the "video_codec" edge to the VideoCodec entity.
+func (suo *StreamUpdateOne) ClearVideoCodec() *StreamUpdateOne {
+	suo.mutation.ClearVideoCodec()
+	return suo
+}
+
+// ClearAudioCodec clears the "audio_codec" edge to the AudioCodec entity.
+func (suo *StreamUpdateOne) ClearAudioCodec() *StreamUpdateOne {
+	suo.mutation.ClearAudioCodec()
+	return suo
 }
 
 // Where appends a list predicates to the StreamUpdate builder.
@@ -509,12 +607,6 @@ func (suo *StreamUpdateOne) sqlSave(ctx context.Context) (_node *Stream, err err
 	if value, ok := suo.mutation.Container(); ok {
 		_spec.SetField(stream.FieldContainer, field.TypeString, value)
 	}
-	if value, ok := suo.mutation.VideoCodec(); ok {
-		_spec.SetField(stream.FieldVideoCodec, field.TypeString, value)
-	}
-	if value, ok := suo.mutation.AudioCodec(); ok {
-		_spec.SetField(stream.FieldAudioCodec, field.TypeString, value)
-	}
 	if value, ok := suo.mutation.SegmentDuration(); ok {
 		_spec.SetField(stream.FieldSegmentDuration, field.TypeInt, value)
 	}
@@ -526,6 +618,64 @@ func (suo *StreamUpdateOne) sqlSave(ctx context.Context) (_node *Stream, err err
 	}
 	if value, ok := suo.mutation.GetType(); ok {
 		_spec.SetField(stream.FieldType, field.TypeEnum, value)
+	}
+	if suo.mutation.VideoCodecCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   stream.VideoCodecTable,
+			Columns: []string{stream.VideoCodecColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := suo.mutation.VideoCodecIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   stream.VideoCodecTable,
+			Columns: []string{stream.VideoCodecColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if suo.mutation.AudioCodecCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   stream.AudioCodecTable,
+			Columns: []string{stream.AudioCodecColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := suo.mutation.AudioCodecIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   stream.AudioCodecTable,
+			Columns: []string{stream.AudioCodecColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	_node = &Stream{config: suo.config}
 	_spec.Assign = _node.assignValues

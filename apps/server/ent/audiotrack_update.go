@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/predicate"
@@ -98,16 +98,19 @@ func (atu *AudioTrackUpdate) ClearLanguage() *AudioTrackUpdate {
 	return atu
 }
 
-// SetCodecs sets the "codecs" field.
-func (atu *AudioTrackUpdate) SetCodecs(s []string) *AudioTrackUpdate {
-	atu.mutation.SetCodecs(s)
+// AddCodecIDs adds the "codecs" edge to the AudioCodec entity by IDs.
+func (atu *AudioTrackUpdate) AddCodecIDs(ids ...int) *AudioTrackUpdate {
+	atu.mutation.AddCodecIDs(ids...)
 	return atu
 }
 
-// AppendCodecs appends s to the "codecs" field.
-func (atu *AudioTrackUpdate) AppendCodecs(s []string) *AudioTrackUpdate {
-	atu.mutation.AppendCodecs(s)
-	return atu
+// AddCodecs adds the "codecs" edges to the AudioCodec entity.
+func (atu *AudioTrackUpdate) AddCodecs(a ...*AudioCodec) *AudioTrackUpdate {
+	ids := make([]int, len(a))
+	for i := range a {
+		ids[i] = a[i].ID
+	}
+	return atu.AddCodecIDs(ids...)
 }
 
 // SetMediaID sets the "media" edge to the PlaySessionMedia entity by ID.
@@ -124,6 +127,27 @@ func (atu *AudioTrackUpdate) SetMedia(p *PlaySessionMedia) *AudioTrackUpdate {
 // Mutation returns the AudioTrackMutation object of the builder.
 func (atu *AudioTrackUpdate) Mutation() *AudioTrackMutation {
 	return atu.mutation
+}
+
+// ClearCodecs clears all "codecs" edges to the AudioCodec entity.
+func (atu *AudioTrackUpdate) ClearCodecs() *AudioTrackUpdate {
+	atu.mutation.ClearCodecs()
+	return atu
+}
+
+// RemoveCodecIDs removes the "codecs" edge to AudioCodec entities by IDs.
+func (atu *AudioTrackUpdate) RemoveCodecIDs(ids ...int) *AudioTrackUpdate {
+	atu.mutation.RemoveCodecIDs(ids...)
+	return atu
+}
+
+// RemoveCodecs removes "codecs" edges to AudioCodec entities.
+func (atu *AudioTrackUpdate) RemoveCodecs(a ...*AudioCodec) *AudioTrackUpdate {
+	ids := make([]int, len(a))
+	for i := range a {
+		ids[i] = a[i].ID
+	}
+	return atu.RemoveCodecIDs(ids...)
 }
 
 // ClearMedia clears the "media" edge to the PlaySessionMedia entity.
@@ -197,13 +221,50 @@ func (atu *AudioTrackUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if atu.mutation.LanguageCleared() {
 		_spec.ClearField(audiotrack.FieldLanguage, field.TypeString)
 	}
-	if value, ok := atu.mutation.Codecs(); ok {
-		_spec.SetField(audiotrack.FieldCodecs, field.TypeJSON, value)
+	if atu.mutation.CodecsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   audiotrack.CodecsTable,
+			Columns: audiotrack.CodecsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if value, ok := atu.mutation.AppendedCodecs(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, audiotrack.FieldCodecs, value)
-		})
+	if nodes := atu.mutation.RemovedCodecsIDs(); len(nodes) > 0 && !atu.mutation.CodecsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   audiotrack.CodecsTable,
+			Columns: audiotrack.CodecsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := atu.mutation.CodecsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   audiotrack.CodecsTable,
+			Columns: audiotrack.CodecsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if atu.mutation.MediaCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -323,16 +384,19 @@ func (atuo *AudioTrackUpdateOne) ClearLanguage() *AudioTrackUpdateOne {
 	return atuo
 }
 
-// SetCodecs sets the "codecs" field.
-func (atuo *AudioTrackUpdateOne) SetCodecs(s []string) *AudioTrackUpdateOne {
-	atuo.mutation.SetCodecs(s)
+// AddCodecIDs adds the "codecs" edge to the AudioCodec entity by IDs.
+func (atuo *AudioTrackUpdateOne) AddCodecIDs(ids ...int) *AudioTrackUpdateOne {
+	atuo.mutation.AddCodecIDs(ids...)
 	return atuo
 }
 
-// AppendCodecs appends s to the "codecs" field.
-func (atuo *AudioTrackUpdateOne) AppendCodecs(s []string) *AudioTrackUpdateOne {
-	atuo.mutation.AppendCodecs(s)
-	return atuo
+// AddCodecs adds the "codecs" edges to the AudioCodec entity.
+func (atuo *AudioTrackUpdateOne) AddCodecs(a ...*AudioCodec) *AudioTrackUpdateOne {
+	ids := make([]int, len(a))
+	for i := range a {
+		ids[i] = a[i].ID
+	}
+	return atuo.AddCodecIDs(ids...)
 }
 
 // SetMediaID sets the "media" edge to the PlaySessionMedia entity by ID.
@@ -349,6 +413,27 @@ func (atuo *AudioTrackUpdateOne) SetMedia(p *PlaySessionMedia) *AudioTrackUpdate
 // Mutation returns the AudioTrackMutation object of the builder.
 func (atuo *AudioTrackUpdateOne) Mutation() *AudioTrackMutation {
 	return atuo.mutation
+}
+
+// ClearCodecs clears all "codecs" edges to the AudioCodec entity.
+func (atuo *AudioTrackUpdateOne) ClearCodecs() *AudioTrackUpdateOne {
+	atuo.mutation.ClearCodecs()
+	return atuo
+}
+
+// RemoveCodecIDs removes the "codecs" edge to AudioCodec entities by IDs.
+func (atuo *AudioTrackUpdateOne) RemoveCodecIDs(ids ...int) *AudioTrackUpdateOne {
+	atuo.mutation.RemoveCodecIDs(ids...)
+	return atuo
+}
+
+// RemoveCodecs removes "codecs" edges to AudioCodec entities.
+func (atuo *AudioTrackUpdateOne) RemoveCodecs(a ...*AudioCodec) *AudioTrackUpdateOne {
+	ids := make([]int, len(a))
+	for i := range a {
+		ids[i] = a[i].ID
+	}
+	return atuo.RemoveCodecIDs(ids...)
 }
 
 // ClearMedia clears the "media" edge to the PlaySessionMedia entity.
@@ -452,13 +537,50 @@ func (atuo *AudioTrackUpdateOne) sqlSave(ctx context.Context) (_node *AudioTrack
 	if atuo.mutation.LanguageCleared() {
 		_spec.ClearField(audiotrack.FieldLanguage, field.TypeString)
 	}
-	if value, ok := atuo.mutation.Codecs(); ok {
-		_spec.SetField(audiotrack.FieldCodecs, field.TypeJSON, value)
+	if atuo.mutation.CodecsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   audiotrack.CodecsTable,
+			Columns: audiotrack.CodecsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if value, ok := atuo.mutation.AppendedCodecs(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, audiotrack.FieldCodecs, value)
-		})
+	if nodes := atuo.mutation.RemovedCodecsIDs(); len(nodes) > 0 && !atuo.mutation.CodecsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   audiotrack.CodecsTable,
+			Columns: audiotrack.CodecsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := atuo.mutation.CodecsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   audiotrack.CodecsTable,
+			Columns: audiotrack.CodecsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if atuo.mutation.MediaCleared() {
 		edge := &sqlgraph.EdgeSpec{

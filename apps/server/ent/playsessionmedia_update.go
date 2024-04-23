@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/playsession"
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
@@ -104,6 +105,21 @@ func (psmu *PlaySessionMediaUpdate) AddVideoCodecs(v ...*VideoCodec) *PlaySessio
 	return psmu.AddVideoCodecIDs(ids...)
 }
 
+// AddAudioCodecIDs adds the "audio_codecs" edge to the AudioCodec entity by IDs.
+func (psmu *PlaySessionMediaUpdate) AddAudioCodecIDs(ids ...int) *PlaySessionMediaUpdate {
+	psmu.mutation.AddAudioCodecIDs(ids...)
+	return psmu
+}
+
+// AddAudioCodecs adds the "audio_codecs" edges to the AudioCodec entity.
+func (psmu *PlaySessionMediaUpdate) AddAudioCodecs(a ...*AudioCodec) *PlaySessionMediaUpdate {
+	ids := make([]int, len(a))
+	for i := range a {
+		ids[i] = a[i].ID
+	}
+	return psmu.AddAudioCodecIDs(ids...)
+}
+
 // Mutation returns the PlaySessionMediaMutation object of the builder.
 func (psmu *PlaySessionMediaUpdate) Mutation() *PlaySessionMediaMutation {
 	return psmu.mutation
@@ -161,6 +177,27 @@ func (psmu *PlaySessionMediaUpdate) RemoveVideoCodecs(v ...*VideoCodec) *PlaySes
 		ids[i] = v[i].ID
 	}
 	return psmu.RemoveVideoCodecIDs(ids...)
+}
+
+// ClearAudioCodecs clears all "audio_codecs" edges to the AudioCodec entity.
+func (psmu *PlaySessionMediaUpdate) ClearAudioCodecs() *PlaySessionMediaUpdate {
+	psmu.mutation.ClearAudioCodecs()
+	return psmu
+}
+
+// RemoveAudioCodecIDs removes the "audio_codecs" edge to AudioCodec entities by IDs.
+func (psmu *PlaySessionMediaUpdate) RemoveAudioCodecIDs(ids ...int) *PlaySessionMediaUpdate {
+	psmu.mutation.RemoveAudioCodecIDs(ids...)
+	return psmu
+}
+
+// RemoveAudioCodecs removes "audio_codecs" edges to AudioCodec entities.
+func (psmu *PlaySessionMediaUpdate) RemoveAudioCodecs(a ...*AudioCodec) *PlaySessionMediaUpdate {
+	ids := make([]int, len(a))
+	for i := range a {
+		ids[i] = a[i].ID
+	}
+	return psmu.RemoveAudioCodecIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -366,6 +403,51 @@ func (psmu *PlaySessionMediaUpdate) sqlSave(ctx context.Context) (n int, err err
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if psmu.mutation.AudioCodecsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.AudioCodecsTable,
+			Columns: []string{playsessionmedia.AudioCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := psmu.mutation.RemovedAudioCodecsIDs(); len(nodes) > 0 && !psmu.mutation.AudioCodecsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.AudioCodecsTable,
+			Columns: []string{playsessionmedia.AudioCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := psmu.mutation.AudioCodecsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.AudioCodecsTable,
+			Columns: []string{playsessionmedia.AudioCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if n, err = sqlgraph.UpdateNodes(ctx, psmu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{playsessionmedia.Label}
@@ -458,6 +540,21 @@ func (psmuo *PlaySessionMediaUpdateOne) AddVideoCodecs(v ...*VideoCodec) *PlaySe
 	return psmuo.AddVideoCodecIDs(ids...)
 }
 
+// AddAudioCodecIDs adds the "audio_codecs" edge to the AudioCodec entity by IDs.
+func (psmuo *PlaySessionMediaUpdateOne) AddAudioCodecIDs(ids ...int) *PlaySessionMediaUpdateOne {
+	psmuo.mutation.AddAudioCodecIDs(ids...)
+	return psmuo
+}
+
+// AddAudioCodecs adds the "audio_codecs" edges to the AudioCodec entity.
+func (psmuo *PlaySessionMediaUpdateOne) AddAudioCodecs(a ...*AudioCodec) *PlaySessionMediaUpdateOne {
+	ids := make([]int, len(a))
+	for i := range a {
+		ids[i] = a[i].ID
+	}
+	return psmuo.AddAudioCodecIDs(ids...)
+}
+
 // Mutation returns the PlaySessionMediaMutation object of the builder.
 func (psmuo *PlaySessionMediaUpdateOne) Mutation() *PlaySessionMediaMutation {
 	return psmuo.mutation
@@ -515,6 +612,27 @@ func (psmuo *PlaySessionMediaUpdateOne) RemoveVideoCodecs(v ...*VideoCodec) *Pla
 		ids[i] = v[i].ID
 	}
 	return psmuo.RemoveVideoCodecIDs(ids...)
+}
+
+// ClearAudioCodecs clears all "audio_codecs" edges to the AudioCodec entity.
+func (psmuo *PlaySessionMediaUpdateOne) ClearAudioCodecs() *PlaySessionMediaUpdateOne {
+	psmuo.mutation.ClearAudioCodecs()
+	return psmuo
+}
+
+// RemoveAudioCodecIDs removes the "audio_codecs" edge to AudioCodec entities by IDs.
+func (psmuo *PlaySessionMediaUpdateOne) RemoveAudioCodecIDs(ids ...int) *PlaySessionMediaUpdateOne {
+	psmuo.mutation.RemoveAudioCodecIDs(ids...)
+	return psmuo
+}
+
+// RemoveAudioCodecs removes "audio_codecs" edges to AudioCodec entities.
+func (psmuo *PlaySessionMediaUpdateOne) RemoveAudioCodecs(a ...*AudioCodec) *PlaySessionMediaUpdateOne {
+	ids := make([]int, len(a))
+	for i := range a {
+		ids[i] = a[i].ID
+	}
+	return psmuo.RemoveAudioCodecIDs(ids...)
 }
 
 // Where appends a list predicates to the PlaySessionMediaUpdate builder.
@@ -743,6 +861,51 @@ func (psmuo *PlaySessionMediaUpdateOne) sqlSave(ctx context.Context) (_node *Pla
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if psmuo.mutation.AudioCodecsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.AudioCodecsTable,
+			Columns: []string{playsessionmedia.AudioCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := psmuo.mutation.RemovedAudioCodecsIDs(); len(nodes) > 0 && !psmuo.mutation.AudioCodecsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.AudioCodecsTable,
+			Columns: []string{playsessionmedia.AudioCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := psmuo.mutation.AudioCodecsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   playsessionmedia.AudioCodecsTable,
+			Columns: []string{playsessionmedia.AudioCodecsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

@@ -12,6 +12,8 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// AudioCodec is the client for interacting with the AudioCodec builders.
+	AudioCodec *AudioCodecClient
 	// AudioTrack is the client for interacting with the AudioTrack builders.
 	AudioTrack *AudioTrackClient
 	// Library is the client for interacting with the Library builders.
@@ -159,6 +161,7 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.AudioCodec = NewAudioCodecClient(tx.config)
 	tx.AudioTrack = NewAudioTrackClient(tx.config)
 	tx.Library = NewLibraryClient(tx.config)
 	tx.PlaySession = NewPlaySessionClient(tx.config)
@@ -176,7 +179,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: AudioTrack.QueryXXX(), the query will be executed
+// applies a query, for example: AudioCodec.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

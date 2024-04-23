@@ -8,6 +8,50 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 )
 
+func (ac *AudioCodec) Streams(ctx context.Context) (result []*Stream, err error) {
+	if fc := graphql.GetFieldContext(ctx); fc != nil && fc.Field.Alias != "" {
+		result, err = ac.NamedStreams(graphql.GetFieldContext(ctx).Field.Alias)
+	} else {
+		result, err = ac.Edges.StreamsOrErr()
+	}
+	if IsNotLoaded(err) {
+		result, err = ac.QueryStreams().All(ctx)
+	}
+	return result, err
+}
+
+func (ac *AudioCodec) AudioTracks(ctx context.Context) (result []*AudioTrack, err error) {
+	if fc := graphql.GetFieldContext(ctx); fc != nil && fc.Field.Alias != "" {
+		result, err = ac.NamedAudioTracks(graphql.GetFieldContext(ctx).Field.Alias)
+	} else {
+		result, err = ac.Edges.AudioTracksOrErr()
+	}
+	if IsNotLoaded(err) {
+		result, err = ac.QueryAudioTracks().All(ctx)
+	}
+	return result, err
+}
+
+func (ac *AudioCodec) Media(ctx context.Context) (*PlaySessionMedia, error) {
+	result, err := ac.Edges.MediaOrErr()
+	if IsNotLoaded(err) {
+		result, err = ac.QueryMedia().Only(ctx)
+	}
+	return result, MaskNotFound(err)
+}
+
+func (at *AudioTrack) Codecs(ctx context.Context) (result []*AudioCodec, err error) {
+	if fc := graphql.GetFieldContext(ctx); fc != nil && fc.Field.Alias != "" {
+		result, err = at.NamedCodecs(graphql.GetFieldContext(ctx).Field.Alias)
+	} else {
+		result, err = at.Edges.CodecsOrErr()
+	}
+	if IsNotLoaded(err) {
+		result, err = at.QueryCodecs().All(ctx)
+	}
+	return result, err
+}
+
 func (at *AudioTrack) Media(ctx context.Context) (*PlaySessionMedia, error) {
 	result, err := at.Edges.MediaOrErr()
 	if IsNotLoaded(err) {
@@ -88,10 +132,38 @@ func (psm *PlaySessionMedia) VideoCodecs(ctx context.Context) (result []*VideoCo
 	return result, err
 }
 
+func (psm *PlaySessionMedia) AudioCodecs(ctx context.Context) (result []*AudioCodec, err error) {
+	if fc := graphql.GetFieldContext(ctx); fc != nil && fc.Field.Alias != "" {
+		result, err = psm.NamedAudioCodecs(graphql.GetFieldContext(ctx).Field.Alias)
+	} else {
+		result, err = psm.Edges.AudioCodecsOrErr()
+	}
+	if IsNotLoaded(err) {
+		result, err = psm.QueryAudioCodecs().All(ctx)
+	}
+	return result, err
+}
+
 func (pc *PlaybackClient) Session(ctx context.Context) (*PlaySession, error) {
 	result, err := pc.Edges.SessionOrErr()
 	if IsNotLoaded(err) {
 		result, err = pc.QuerySession().Only(ctx)
+	}
+	return result, MaskNotFound(err)
+}
+
+func (s *Stream) VideoCodec(ctx context.Context) (*VideoCodec, error) {
+	result, err := s.Edges.VideoCodecOrErr()
+	if IsNotLoaded(err) {
+		result, err = s.QueryVideoCodec().Only(ctx)
+	}
+	return result, MaskNotFound(err)
+}
+
+func (s *Stream) AudioCodec(ctx context.Context) (*AudioCodec, error) {
+	result, err := s.Edges.AudioCodecOrErr()
+	if IsNotLoaded(err) {
+		result, err = s.QueryAudioCodec().Only(ctx)
 	}
 	return result, MaskNotFound(err)
 }
@@ -114,6 +186,18 @@ func (v *Video) Library(ctx context.Context) (*Library, error) {
 		result, err = v.QueryLibrary().Only(ctx)
 	}
 	return result, MaskNotFound(err)
+}
+
+func (vc *VideoCodec) Streams(ctx context.Context) (result []*Stream, err error) {
+	if fc := graphql.GetFieldContext(ctx); fc != nil && fc.Field.Alias != "" {
+		result, err = vc.NamedStreams(graphql.GetFieldContext(ctx).Field.Alias)
+	} else {
+		result, err = vc.Edges.StreamsOrErr()
+	}
+	if IsNotLoaded(err) {
+		result, err = vc.QueryStreams().All(ctx)
+	}
+	return result, err
 }
 
 func (vc *VideoCodec) Media(ctx context.Context) (*PlaySessionMedia, error) {

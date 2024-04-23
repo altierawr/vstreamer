@@ -24,6 +24,7 @@ func (VideoCodec) Fields() []ent.Field {
 // Edges of the VideoCodec.
 func (VideoCodec) Edges() []ent.Edge {
 	return []ent.Edge{
+		edge.To("streams", Stream.Type),
 		edge.From("media", PlaySessionMedia.Type).
 			Ref("video_codecs").
 			Unique(),

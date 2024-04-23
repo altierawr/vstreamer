@@ -52,6 +52,15 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	AudioCodec struct {
+		AudioTracks func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Media       func(childComplexity int) int
+		Mime        func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Streams     func(childComplexity int) int
+	}
+
 	AudioTrack struct {
 		ChannelLayout func(childComplexity int) int
 		Codecs        func(childComplexity int) int
@@ -91,6 +100,7 @@ type ComplexityRoot struct {
 	}
 
 	PlaySessionMedia struct {
+		AudioCodecs func(childComplexity int) int
 		AudioTracks func(childComplexity int) int
 		ID          func(childComplexity int) int
 		Resolutions func(childComplexity int) int
@@ -139,6 +149,7 @@ type ComplexityRoot struct {
 		Media        func(childComplexity int) int
 		Mime         func(childComplexity int) int
 		Name         func(childComplexity int) int
+		Streams      func(childComplexity int) int
 	}
 }
 
@@ -173,6 +184,48 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e, 0, 0, nil}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "AudioCodec.audioTracks":
+		if e.complexity.AudioCodec.AudioTracks == nil {
+			break
+		}
+
+		return e.complexity.AudioCodec.AudioTracks(childComplexity), true
+
+	case "AudioCodec.id":
+		if e.complexity.AudioCodec.ID == nil {
+			break
+		}
+
+		return e.complexity.AudioCodec.ID(childComplexity), true
+
+	case "AudioCodec.media":
+		if e.complexity.AudioCodec.Media == nil {
+			break
+		}
+
+		return e.complexity.AudioCodec.Media(childComplexity), true
+
+	case "AudioCodec.mime":
+		if e.complexity.AudioCodec.Mime == nil {
+			break
+		}
+
+		return e.complexity.AudioCodec.Mime(childComplexity), true
+
+	case "AudioCodec.name":
+		if e.complexity.AudioCodec.Name == nil {
+			break
+		}
+
+		return e.complexity.AudioCodec.Name(childComplexity), true
+
+	case "AudioCodec.streams":
+		if e.complexity.AudioCodec.Streams == nil {
+			break
+		}
+
+		return e.complexity.AudioCodec.Streams(childComplexity), true
 
 	case "AudioTrack.channelLayout":
 		if e.complexity.AudioTrack.ChannelLayout == nil {
@@ -349,6 +402,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.PlaySession.State(childComplexity), true
+
+	case "PlaySessionMedia.audioCodecs":
+		if e.complexity.PlaySessionMedia.AudioCodecs == nil {
+			break
+		}
+
+		return e.complexity.PlaySessionMedia.AudioCodecs(childComplexity), true
 
 	case "PlaySessionMedia.audioTracks":
 		if e.complexity.PlaySessionMedia.AudioTracks == nil {
@@ -590,6 +650,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.VideoCodec.Name(childComplexity), true
+
+	case "VideoCodec.streams":
+		if e.complexity.VideoCodec.Streams == nil {
+			break
+		}
+
+		return e.complexity.VideoCodec.Streams(childComplexity), true
 
 	}
 	return 0, false
@@ -851,6 +918,313 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
+func (ec *executionContext) _AudioCodec_id(ctx context.Context, field graphql.CollectedField, obj *ent.AudioCodec) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AudioCodec_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNID2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AudioCodec_id(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AudioCodec",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AudioCodec_name(ctx context.Context, field graphql.CollectedField, obj *ent.AudioCodec) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AudioCodec_name(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Name, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AudioCodec_name(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AudioCodec",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AudioCodec_mime(ctx context.Context, field graphql.CollectedField, obj *ent.AudioCodec) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AudioCodec_mime(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Mime, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AudioCodec_mime(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AudioCodec",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AudioCodec_streams(ctx context.Context, field graphql.CollectedField, obj *ent.AudioCodec) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AudioCodec_streams(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Streams(ctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*ent.Stream)
+	fc.Result = res
+	return ec.marshalOStream2ᚕᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐStreamᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AudioCodec_streams(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AudioCodec",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Stream_id(ctx, field)
+			case "width":
+				return ec.fieldContext_Stream_width(ctx, field)
+			case "height":
+				return ec.fieldContext_Stream_height(ctx, field)
+			case "container":
+				return ec.fieldContext_Stream_container(ctx, field)
+			case "segmentDuration":
+				return ec.fieldContext_Stream_segmentDuration(ctx, field)
+			case "quality":
+				return ec.fieldContext_Stream_quality(ctx, field)
+			case "type":
+				return ec.fieldContext_Stream_type(ctx, field)
+			case "videoCodec":
+				return ec.fieldContext_Stream_videoCodec(ctx, field)
+			case "audioCodec":
+				return ec.fieldContext_Stream_audioCodec(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Stream", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AudioCodec_audioTracks(ctx context.Context, field graphql.CollectedField, obj *ent.AudioCodec) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AudioCodec_audioTracks(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AudioTracks(ctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*ent.AudioTrack)
+	fc.Result = res
+	return ec.marshalOAudioTrack2ᚕᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐAudioTrackᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AudioCodec_audioTracks(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AudioCodec",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_AudioTrack_id(ctx, field)
+			case "name":
+				return ec.fieldContext_AudioTrack_name(ctx, field)
+			case "nrChannels":
+				return ec.fieldContext_AudioTrack_nrChannels(ctx, field)
+			case "channelLayout":
+				return ec.fieldContext_AudioTrack_channelLayout(ctx, field)
+			case "language":
+				return ec.fieldContext_AudioTrack_language(ctx, field)
+			case "codecs":
+				return ec.fieldContext_AudioTrack_codecs(ctx, field)
+			case "media":
+				return ec.fieldContext_AudioTrack_media(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AudioTrack", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AudioCodec_media(ctx context.Context, field graphql.CollectedField, obj *ent.AudioCodec) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AudioCodec_media(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Media(ctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*ent.PlaySessionMedia)
+	fc.Result = res
+	return ec.marshalOPlaySessionMedia2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐPlaySessionMedia(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AudioCodec_media(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AudioCodec",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_PlaySessionMedia_id(ctx, field)
+			case "resolutions":
+				return ec.fieldContext_PlaySessionMedia_resolutions(ctx, field)
+			case "audioTracks":
+				return ec.fieldContext_PlaySessionMedia_audioTracks(ctx, field)
+			case "video":
+				return ec.fieldContext_PlaySessionMedia_video(ctx, field)
+			case "session":
+				return ec.fieldContext_PlaySessionMedia_session(ctx, field)
+			case "videoCodecs":
+				return ec.fieldContext_PlaySessionMedia_videoCodecs(ctx, field)
+			case "audioCodecs":
+				return ec.fieldContext_PlaySessionMedia_audioCodecs(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PlaySessionMedia", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AudioTrack_id(ctx context.Context, field graphql.CollectedField, obj *ent.AudioTrack) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_AudioTrack_id(ctx, field)
 	if err != nil {
@@ -1082,31 +1456,42 @@ func (ec *executionContext) _AudioTrack_codecs(ctx context.Context, field graphq
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Codecs, nil
+		return obj.Codecs(ctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.([]string)
+	res := resTmp.([]*ent.AudioCodec)
 	fc.Result = res
-	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+	return ec.marshalOAudioCodec2ᚕᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐAudioCodecᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_AudioTrack_codecs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "AudioTrack",
 		Field:      field,
-		IsMethod:   false,
+		IsMethod:   true,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_AudioCodec_id(ctx, field)
+			case "name":
+				return ec.fieldContext_AudioCodec_name(ctx, field)
+			case "mime":
+				return ec.fieldContext_AudioCodec_mime(ctx, field)
+			case "streams":
+				return ec.fieldContext_AudioCodec_streams(ctx, field)
+			case "audioTracks":
+				return ec.fieldContext_AudioCodec_audioTracks(ctx, field)
+			case "media":
+				return ec.fieldContext_AudioCodec_media(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AudioCodec", field.Name)
 		},
 	}
 	return fc, nil
@@ -1163,6 +1548,8 @@ func (ec *executionContext) fieldContext_AudioTrack_media(ctx context.Context, f
 				return ec.fieldContext_PlaySessionMedia_session(ctx, field)
 			case "videoCodecs":
 				return ec.fieldContext_PlaySessionMedia_videoCodecs(ctx, field)
+			case "audioCodecs":
+				return ec.fieldContext_PlaySessionMedia_audioCodecs(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type PlaySessionMedia", field.Name)
 		},
@@ -1950,6 +2337,8 @@ func (ec *executionContext) fieldContext_PlaySession_media(ctx context.Context, 
 				return ec.fieldContext_PlaySessionMedia_session(ctx, field)
 			case "videoCodecs":
 				return ec.fieldContext_PlaySessionMedia_videoCodecs(ctx, field)
+			case "audioCodecs":
+				return ec.fieldContext_PlaySessionMedia_audioCodecs(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type PlaySessionMedia", field.Name)
 		},
@@ -2255,10 +2644,67 @@ func (ec *executionContext) fieldContext_PlaySessionMedia_videoCodecs(ctx contex
 				return ec.fieldContext_VideoCodec_mime(ctx, field)
 			case "dynamicRange":
 				return ec.fieldContext_VideoCodec_dynamicRange(ctx, field)
+			case "streams":
+				return ec.fieldContext_VideoCodec_streams(ctx, field)
 			case "media":
 				return ec.fieldContext_VideoCodec_media(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type VideoCodec", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlaySessionMedia_audioCodecs(ctx context.Context, field graphql.CollectedField, obj *ent.PlaySessionMedia) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PlaySessionMedia_audioCodecs(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AudioCodecs(ctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*ent.AudioCodec)
+	fc.Result = res
+	return ec.marshalOAudioCodec2ᚕᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐAudioCodecᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PlaySessionMedia_audioCodecs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlaySessionMedia",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_AudioCodec_id(ctx, field)
+			case "name":
+				return ec.fieldContext_AudioCodec_name(ctx, field)
+			case "mime":
+				return ec.fieldContext_AudioCodec_mime(ctx, field)
+			case "streams":
+				return ec.fieldContext_AudioCodec_streams(ctx, field)
+			case "audioTracks":
+				return ec.fieldContext_AudioCodec_audioTracks(ctx, field)
+			case "media":
+				return ec.fieldContext_AudioCodec_media(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AudioCodec", field.Name)
 		},
 	}
 	return fc, nil
@@ -2983,94 +3429,6 @@ func (ec *executionContext) fieldContext_Stream_container(ctx context.Context, f
 	return fc, nil
 }
 
-func (ec *executionContext) _Stream_videoCodec(ctx context.Context, field graphql.CollectedField, obj *ent.Stream) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Stream_videoCodec(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.VideoCodec, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Stream_videoCodec(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Stream",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Stream_audioCodec(ctx context.Context, field graphql.CollectedField, obj *ent.Stream) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Stream_audioCodec(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.AudioCodec, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Stream_audioCodec(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Stream",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Stream_segmentDuration(ctx context.Context, field graphql.CollectedField, obj *ent.Stream) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Stream_segmentDuration(ctx, field)
 	if err != nil {
@@ -3198,6 +3556,116 @@ func (ec *executionContext) fieldContext_Stream_type(ctx context.Context, field 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type StreamType does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Stream_videoCodec(ctx context.Context, field graphql.CollectedField, obj *ent.Stream) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Stream_videoCodec(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.VideoCodec(ctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*ent.VideoCodec)
+	fc.Result = res
+	return ec.marshalOVideoCodec2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐVideoCodec(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Stream_videoCodec(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Stream",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_VideoCodec_id(ctx, field)
+			case "name":
+				return ec.fieldContext_VideoCodec_name(ctx, field)
+			case "mime":
+				return ec.fieldContext_VideoCodec_mime(ctx, field)
+			case "dynamicRange":
+				return ec.fieldContext_VideoCodec_dynamicRange(ctx, field)
+			case "streams":
+				return ec.fieldContext_VideoCodec_streams(ctx, field)
+			case "media":
+				return ec.fieldContext_VideoCodec_media(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type VideoCodec", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Stream_audioCodec(ctx context.Context, field graphql.CollectedField, obj *ent.Stream) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Stream_audioCodec(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AudioCodec(ctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*ent.AudioCodec)
+	fc.Result = res
+	return ec.marshalOAudioCodec2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐAudioCodec(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Stream_audioCodec(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Stream",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_AudioCodec_id(ctx, field)
+			case "name":
+				return ec.fieldContext_AudioCodec_name(ctx, field)
+			case "mime":
+				return ec.fieldContext_AudioCodec_mime(ctx, field)
+			case "streams":
+				return ec.fieldContext_AudioCodec_streams(ctx, field)
+			case "audioTracks":
+				return ec.fieldContext_AudioCodec_audioTracks(ctx, field)
+			case "media":
+				return ec.fieldContext_AudioCodec_media(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AudioCodec", field.Name)
 		},
 	}
 	return fc, nil
@@ -3383,6 +3851,8 @@ func (ec *executionContext) fieldContext_Video_playSessionMedias(ctx context.Con
 				return ec.fieldContext_PlaySessionMedia_session(ctx, field)
 			case "videoCodecs":
 				return ec.fieldContext_PlaySessionMedia_videoCodecs(ctx, field)
+			case "audioCodecs":
+				return ec.fieldContext_PlaySessionMedia_audioCodecs(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type PlaySessionMedia", field.Name)
 		},
@@ -3617,6 +4087,67 @@ func (ec *executionContext) fieldContext_VideoCodec_dynamicRange(ctx context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _VideoCodec_streams(ctx context.Context, field graphql.CollectedField, obj *ent.VideoCodec) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_VideoCodec_streams(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Streams(ctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*ent.Stream)
+	fc.Result = res
+	return ec.marshalOStream2ᚕᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐStreamᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_VideoCodec_streams(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "VideoCodec",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Stream_id(ctx, field)
+			case "width":
+				return ec.fieldContext_Stream_width(ctx, field)
+			case "height":
+				return ec.fieldContext_Stream_height(ctx, field)
+			case "container":
+				return ec.fieldContext_Stream_container(ctx, field)
+			case "segmentDuration":
+				return ec.fieldContext_Stream_segmentDuration(ctx, field)
+			case "quality":
+				return ec.fieldContext_Stream_quality(ctx, field)
+			case "type":
+				return ec.fieldContext_Stream_type(ctx, field)
+			case "videoCodec":
+				return ec.fieldContext_Stream_videoCodec(ctx, field)
+			case "audioCodec":
+				return ec.fieldContext_Stream_audioCodec(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Stream", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _VideoCodec_media(ctx context.Context, field graphql.CollectedField, obj *ent.VideoCodec) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_VideoCodec_media(ctx, field)
 	if err != nil {
@@ -3665,6 +4196,8 @@ func (ec *executionContext) fieldContext_VideoCodec_media(ctx context.Context, f
 				return ec.fieldContext_PlaySessionMedia_session(ctx, field)
 			case "videoCodecs":
 				return ec.fieldContext_PlaySessionMedia_videoCodecs(ctx, field)
+			case "audioCodecs":
+				return ec.fieldContext_PlaySessionMedia_audioCodecs(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type PlaySessionMedia", field.Name)
 		},
@@ -5817,6 +6350,11 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 	switch obj := (obj).(type) {
 	case nil:
 		return graphql.Null
+	case *ent.AudioCodec:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._AudioCodec(ctx, sel, obj)
 	case *ent.AudioTrack:
 		if obj == nil {
 			return graphql.Null
@@ -5866,6 +6404,154 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 
 // region    **************************** object.gotpl ****************************
 
+var audioCodecImplementors = []string{"AudioCodec", "Node"}
+
+func (ec *executionContext) _AudioCodec(ctx context.Context, sel ast.SelectionSet, obj *ent.AudioCodec) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, audioCodecImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AudioCodec")
+		case "id":
+			out.Values[i] = ec._AudioCodec_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "name":
+			out.Values[i] = ec._AudioCodec_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "mime":
+			out.Values[i] = ec._AudioCodec_mime(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "streams":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AudioCodec_streams(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "audioTracks":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AudioCodec_audioTracks(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "media":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AudioCodec_media(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var audioTrackImplementors = []string{"AudioTrack", "Node"}
 
 func (ec *executionContext) _AudioTrack(ctx context.Context, sel ast.SelectionSet, obj *ent.AudioTrack) graphql.Marshaler {
@@ -5900,10 +6586,38 @@ func (ec *executionContext) _AudioTrack(ctx context.Context, sel ast.SelectionSe
 		case "language":
 			out.Values[i] = ec._AudioTrack_language(ctx, field, obj)
 		case "codecs":
-			out.Values[i] = ec._AudioTrack_codecs(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AudioTrack_codecs(ctx, field, obj)
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "media":
 			field := field
 
@@ -6424,6 +7138,39 @@ func (ec *executionContext) _PlaySessionMedia(ctx context.Context, sel ast.Selec
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "audioCodecs":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._PlaySessionMedia_audioCodecs(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -6695,48 +7442,104 @@ func (ec *executionContext) _Stream(ctx context.Context, sel ast.SelectionSet, o
 		case "id":
 			out.Values[i] = ec._Stream_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "width":
 			out.Values[i] = ec._Stream_width(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "height":
 			out.Values[i] = ec._Stream_height(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "container":
 			out.Values[i] = ec._Stream_container(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "videoCodec":
-			out.Values[i] = ec._Stream_videoCodec(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "audioCodec":
-			out.Values[i] = ec._Stream_audioCodec(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "segmentDuration":
 			out.Values[i] = ec._Stream_segmentDuration(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "quality":
 			out.Values[i] = ec._Stream_quality(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "type":
 			out.Values[i] = ec._Stream_type(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "videoCodec":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Stream_videoCodec(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "audioCodec":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Stream_audioCodec(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -6906,6 +7709,39 @@ func (ec *executionContext) _VideoCodec(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "streams":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._VideoCodec_streams(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "media":
 			field := field
 
@@ -7288,6 +8124,16 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) marshalNAudioCodec2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐAudioCodec(ctx context.Context, sel ast.SelectionSet, v *ent.AudioCodec) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AudioCodec(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNAudioTrack2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐAudioTrack(ctx context.Context, sel ast.SelectionSet, v *ent.AudioTrack) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -7572,6 +8418,16 @@ func (ec *executionContext) marshalNPlaybackClient2ᚖgithubᚗcomᚋaltierawr�
 		return graphql.Null
 	}
 	return ec._PlaybackClient(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNStream2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐStream(ctx context.Context, sel ast.SelectionSet, v *ent.Stream) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Stream(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNStreamQuality2githubᚗcomᚋaltierawrᚋvstreamerᚋentᚋstreamᚐQuality(ctx context.Context, v interface{}) (stream.Quality, error) {
@@ -7987,6 +8843,60 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 	return res
 }
 
+func (ec *executionContext) marshalOAudioCodec2ᚕᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐAudioCodecᚄ(ctx context.Context, sel ast.SelectionSet, v []*ent.AudioCodec) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNAudioCodec2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐAudioCodec(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalOAudioCodec2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐAudioCodec(ctx context.Context, sel ast.SelectionSet, v *ent.AudioCodec) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._AudioCodec(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalOAudioTrack2ᚕᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐAudioTrackᚄ(ctx context.Context, sel ast.SelectionSet, v []*ent.AudioTrack) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -8294,6 +9204,53 @@ func (ec *executionContext) marshalOPlaybackClient2ᚕᚖgithubᚗcomᚋaltieraw
 	return ret
 }
 
+func (ec *executionContext) marshalOStream2ᚕᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐStreamᚄ(ctx context.Context, sel ast.SelectionSet, v []*ent.Stream) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNStream2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐStream(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v interface{}) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -8473,6 +9430,13 @@ func (ec *executionContext) marshalOVideoCodec2ᚕᚖgithubᚗcomᚋaltierawrᚋ
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalOVideoCodec2ᚖgithubᚗcomᚋaltierawrᚋvstreamerᚋentᚐVideoCodec(ctx context.Context, sel ast.SelectionSet, v *ent.VideoCodec) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._VideoCodec(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

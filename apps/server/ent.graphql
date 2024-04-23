@@ -1,12 +1,20 @@
 directive @goField(forceResolver: Boolean, name: String, omittable: Boolean) on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
 directive @goModel(model: String, models: [String!], forceGenerate: Boolean) on OBJECT | INPUT_OBJECT | SCALAR | ENUM | INTERFACE | UNION
+type AudioCodec implements Node {
+  id: ID!
+  name: String!
+  mime: String!
+  streams: [Stream!]
+  audioTracks: [AudioTrack!]
+  media: PlaySessionMedia
+}
 type AudioTrack implements Node {
   id: ID!
   name: String!
   nrChannels: Int!
   channelLayout: String!
   language: String
-  codecs: [String!]!
+  codecs: [AudioCodec!]
   media: PlaySessionMedia!
 }
 """
@@ -108,6 +116,7 @@ type PlaySessionMedia implements Node {
   video: Video
   session: PlaySession!
   videoCodecs: [VideoCodec!]
+  audioCodecs: [AudioCodec!]
 }
 """
 PlaySessionState is enum for the field state
@@ -151,11 +160,11 @@ type Stream implements Node {
   width: Int!
   height: Int!
   container: String!
-  videoCodec: String!
-  audioCodec: String!
   segmentDuration: Int!
   quality: StreamQuality!
   type: StreamType!
+  videoCodec: VideoCodec
+  audioCodec: AudioCodec
 }
 """
 StreamQuality is enum for the field quality
@@ -229,6 +238,7 @@ type VideoCodec implements Node {
   name: String!
   mime: String!
   dynamicRange: VideoCodecDynamicRange!
+  streams: [Stream!]
   media: PlaySessionMedia
 }
 """

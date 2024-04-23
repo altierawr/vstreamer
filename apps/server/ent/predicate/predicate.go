@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// AudioCodec is the predicate function for audiocodec builders.
+type AudioCodec func(*sql.Selector)
+
 // AudioTrack is the predicate function for audiotrack builders.
 type AudioTrack func(*sql.Selector)
 

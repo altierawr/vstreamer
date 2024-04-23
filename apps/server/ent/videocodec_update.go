@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/predicate"
+	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
@@ -70,6 +71,21 @@ func (vcu *VideoCodecUpdate) SetNillableDynamicRange(vr *videocodec.DynamicRange
 	return vcu
 }
 
+// AddStreamIDs adds the "streams" edge to the Stream entity by IDs.
+func (vcu *VideoCodecUpdate) AddStreamIDs(ids ...int) *VideoCodecUpdate {
+	vcu.mutation.AddStreamIDs(ids...)
+	return vcu
+}
+
+// AddStreams adds the "streams" edges to the Stream entity.
+func (vcu *VideoCodecUpdate) AddStreams(s ...*Stream) *VideoCodecUpdate {
+	ids := make([]int, len(s))
+	for i := range s {
+		ids[i] = s[i].ID
+	}
+	return vcu.AddStreamIDs(ids...)
+}
+
 // SetMediaID sets the "media" edge to the PlaySessionMedia entity by ID.
 func (vcu *VideoCodecUpdate) SetMediaID(id int) *VideoCodecUpdate {
 	vcu.mutation.SetMediaID(id)
@@ -92,6 +108,27 @@ func (vcu *VideoCodecUpdate) SetMedia(p *PlaySessionMedia) *VideoCodecUpdate {
 // Mutation returns the VideoCodecMutation object of the builder.
 func (vcu *VideoCodecUpdate) Mutation() *VideoCodecMutation {
 	return vcu.mutation
+}
+
+// ClearStreams clears all "streams" edges to the Stream entity.
+func (vcu *VideoCodecUpdate) ClearStreams() *VideoCodecUpdate {
+	vcu.mutation.ClearStreams()
+	return vcu
+}
+
+// RemoveStreamIDs removes the "streams" edge to Stream entities by IDs.
+func (vcu *VideoCodecUpdate) RemoveStreamIDs(ids ...int) *VideoCodecUpdate {
+	vcu.mutation.RemoveStreamIDs(ids...)
+	return vcu
+}
+
+// RemoveStreams removes "streams" edges to Stream entities.
+func (vcu *VideoCodecUpdate) RemoveStreams(s ...*Stream) *VideoCodecUpdate {
+	ids := make([]int, len(s))
+	for i := range s {
+		ids[i] = s[i].ID
+	}
+	return vcu.RemoveStreamIDs(ids...)
 }
 
 // ClearMedia clears the "media" edge to the PlaySessionMedia entity.
@@ -157,6 +194,51 @@ func (vcu *VideoCodecUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	}
 	if value, ok := vcu.mutation.DynamicRange(); ok {
 		_spec.SetField(videocodec.FieldDynamicRange, field.TypeEnum, value)
+	}
+	if vcu.mutation.StreamsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   videocodec.StreamsTable,
+			Columns: []string{videocodec.StreamsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(stream.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := vcu.mutation.RemovedStreamsIDs(); len(nodes) > 0 && !vcu.mutation.StreamsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   videocodec.StreamsTable,
+			Columns: []string{videocodec.StreamsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(stream.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := vcu.mutation.StreamsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   videocodec.StreamsTable,
+			Columns: []string{videocodec.StreamsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(stream.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if vcu.mutation.MediaCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -249,6 +331,21 @@ func (vcuo *VideoCodecUpdateOne) SetNillableDynamicRange(vr *videocodec.DynamicR
 	return vcuo
 }
 
+// AddStreamIDs adds the "streams" edge to the Stream entity by IDs.
+func (vcuo *VideoCodecUpdateOne) AddStreamIDs(ids ...int) *VideoCodecUpdateOne {
+	vcuo.mutation.AddStreamIDs(ids...)
+	return vcuo
+}
+
+// AddStreams adds the "streams" edges to the Stream entity.
+func (vcuo *VideoCodecUpdateOne) AddStreams(s ...*Stream) *VideoCodecUpdateOne {
+	ids := make([]int, len(s))
+	for i := range s {
+		ids[i] = s[i].ID
+	}
+	return vcuo.AddStreamIDs(ids...)
+}
+
 // SetMediaID sets the "media" edge to the PlaySessionMedia entity by ID.
 func (vcuo *VideoCodecUpdateOne) SetMediaID(id int) *VideoCodecUpdateOne {
 	vcuo.mutation.SetMediaID(id)
@@ -271,6 +368,27 @@ func (vcuo *VideoCodecUpdateOne) SetMedia(p *PlaySessionMedia) *VideoCodecUpdate
 // Mutation returns the VideoCodecMutation object of the builder.
 func (vcuo *VideoCodecUpdateOne) Mutation() *VideoCodecMutation {
 	return vcuo.mutation
+}
+
+// ClearStreams clears all "streams" edges to the Stream entity.
+func (vcuo *VideoCodecUpdateOne) ClearStreams() *VideoCodecUpdateOne {
+	vcuo.mutation.ClearStreams()
+	return vcuo
+}
+
+// RemoveStreamIDs removes the "streams" edge to Stream entities by IDs.
+func (vcuo *VideoCodecUpdateOne) RemoveStreamIDs(ids ...int) *VideoCodecUpdateOne {
+	vcuo.mutation.RemoveStreamIDs(ids...)
+	return vcuo
+}
+
+// RemoveStreams removes "streams" edges to Stream entities.
+func (vcuo *VideoCodecUpdateOne) RemoveStreams(s ...*Stream) *VideoCodecUpdateOne {
+	ids := make([]int, len(s))
+	for i := range s {
+		ids[i] = s[i].ID
+	}
+	return vcuo.RemoveStreamIDs(ids...)
 }
 
 // ClearMedia clears the "media" edge to the PlaySessionMedia entity.
@@ -366,6 +484,51 @@ func (vcuo *VideoCodecUpdateOne) sqlSave(ctx context.Context) (_node *VideoCodec
 	}
 	if value, ok := vcuo.mutation.DynamicRange(); ok {
 		_spec.SetField(videocodec.FieldDynamicRange, field.TypeEnum, value)
+	}
+	if vcuo.mutation.StreamsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   videocodec.StreamsTable,
+			Columns: []string{videocodec.StreamsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(stream.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := vcuo.mutation.RemovedStreamsIDs(); len(nodes) > 0 && !vcuo.mutation.StreamsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   videocodec.StreamsTable,
+			Columns: []string{videocodec.StreamsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(stream.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := vcuo.mutation.StreamsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   videocodec.StreamsTable,
+			Columns: []string{videocodec.StreamsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(stream.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if vcuo.mutation.MediaCleared() {
 		edge := &sqlgraph.EdgeSpec{

@@ -2,6 +2,7 @@ package schema
 
 import (
 	"entgo.io/ent"
+	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 )
 
@@ -16,8 +17,6 @@ func (Stream) Fields() []ent.Field {
 		field.Int("width"),
 		field.Int("height"),
 		field.String("container"),
-		field.String("video_codec"),
-		field.String("audio_codec"),
 		field.Int("segment_duration"),
 		field.Enum("quality").
 			Values("maximum", "medium", "low"),
@@ -28,5 +27,12 @@ func (Stream) Fields() []ent.Field {
 
 // Edges of the Stream.
 func (Stream) Edges() []ent.Edge {
-	return nil
+	return []ent.Edge{
+		edge.From("video_codec", VideoCodec.Type).
+			Ref("streams").
+			Unique(),
+		edge.From("audio_codec", AudioCodec.Type).
+			Ref("streams").
+			Unique(),
+	}
 }

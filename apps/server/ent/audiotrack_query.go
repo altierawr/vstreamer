@@ -4,12 +4,14 @@ package ent
 
 import (
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"math"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/predicate"
@@ -18,14 +20,16 @@ import (
 // AudioTrackQuery is the builder for querying AudioTrack entities.
 type AudioTrackQuery struct {
 	config
-	ctx        *QueryContext
-	order      []audiotrack.OrderOption
-	inters     []Interceptor
-	predicates []predicate.AudioTrack
-	withMedia  *PlaySessionMediaQuery
-	withFKs    bool
-	modifiers  []func(*sql.Selector)
-	loadTotal  []func(context.Context, []*AudioTrack) error
+	ctx             *QueryContext
+	order           []audiotrack.OrderOption
+	inters          []Interceptor
+	predicates      []predicate.AudioTrack
+	withCodecs      *AudioCodecQuery
+	withMedia       *PlaySessionMediaQuery
+	withFKs         bool
+	modifiers       []func(*sql.Selector)
+	loadTotal       []func(context.Context, []*AudioTrack) error
+	withNamedCodecs map[string]*AudioCodecQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -60,6 +64,28 @@ func (atq *AudioTrackQuery) Unique(unique bool) *AudioTrackQuery {
 func (atq *AudioTrackQuery) Order(o ...audiotrack.OrderOption) *AudioTrackQuery {
 	atq.order = append(atq.order, o...)
 	return atq
+}
+
+// QueryCodecs chains the current query on the "codecs" edge.
+func (atq *AudioTrackQuery) QueryCodecs() *AudioCodecQuery {
+	query := (&AudioCodecClient{config: atq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := atq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := atq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(audiotrack.Table, audiotrack.FieldID, selector),
+			sqlgraph.To(audiocodec.Table, audiocodec.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, audiotrack.CodecsTable, audiotrack.CodecsPrimaryKey...),
+		)
+		fromU = sqlgraph.SetNeighbors(atq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
 }
 
 // QueryMedia chains the current query on the "media" edge.
@@ -276,11 +302,23 @@ func (atq *AudioTrackQuery) Clone() *AudioTrackQuery {
 		order:      append([]audiotrack.OrderOption{}, atq.order...),
 		inters:     append([]Interceptor{}, atq.inters...),
 		predicates: append([]predicate.AudioTrack{}, atq.predicates...),
+		withCodecs: atq.withCodecs.Clone(),
 		withMedia:  atq.withMedia.Clone(),
 		// clone intermediate query.
 		sql:  atq.sql.Clone(),
 		path: atq.path,
 	}
+}
+
+// WithCodecs tells the query-builder to eager-load the nodes that are connected to
+// the "codecs" edge. The optional arguments are used to configure the query builder of the edge.
+func (atq *AudioTrackQuery) WithCodecs(opts ...func(*AudioCodecQuery)) *AudioTrackQuery {
+	query := (&AudioCodecClient{config: atq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	atq.withCodecs = query
+	return atq
 }
 
 // WithMedia tells the query-builder to eager-load the nodes that are connected to
@@ -373,7 +411,8 @@ func (atq *AudioTrackQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*
 		nodes       = []*AudioTrack{}
 		withFKs     = atq.withFKs
 		_spec       = atq.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
+			atq.withCodecs != nil,
 			atq.withMedia != nil,
 		}
 	)
@@ -404,9 +443,23 @@ func (atq *AudioTrackQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
+	if query := atq.withCodecs; query != nil {
+		if err := atq.loadCodecs(ctx, query, nodes,
+			func(n *AudioTrack) { n.Edges.Codecs = []*AudioCodec{} },
+			func(n *AudioTrack, e *AudioCodec) { n.Edges.Codecs = append(n.Edges.Codecs, e) }); err != nil {
+			return nil, err
+		}
+	}
 	if query := atq.withMedia; query != nil {
 		if err := atq.loadMedia(ctx, query, nodes, nil,
 			func(n *AudioTrack, e *PlaySessionMedia) { n.Edges.Media = e }); err != nil {
+			return nil, err
+		}
+	}
+	for name, query := range atq.withNamedCodecs {
+		if err := atq.loadCodecs(ctx, query, nodes,
+			func(n *AudioTrack) { n.appendNamedCodecs(name) },
+			func(n *AudioTrack, e *AudioCodec) { n.appendNamedCodecs(name, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -418,6 +471,67 @@ func (atq *AudioTrackQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*
 	return nodes, nil
 }
 
+func (atq *AudioTrackQuery) loadCodecs(ctx context.Context, query *AudioCodecQuery, nodes []*AudioTrack, init func(*AudioTrack), assign func(*AudioTrack, *AudioCodec)) error {
+	edgeIDs := make([]driver.Value, len(nodes))
+	byID := make(map[int]*AudioTrack)
+	nids := make(map[int]map[*AudioTrack]struct{})
+	for i, node := range nodes {
+		edgeIDs[i] = node.ID
+		byID[node.ID] = node
+		if init != nil {
+			init(node)
+		}
+	}
+	query.Where(func(s *sql.Selector) {
+		joinT := sql.Table(audiotrack.CodecsTable)
+		s.Join(joinT).On(s.C(audiocodec.FieldID), joinT.C(audiotrack.CodecsPrimaryKey[1]))
+		s.Where(sql.InValues(joinT.C(audiotrack.CodecsPrimaryKey[0]), edgeIDs...))
+		columns := s.SelectedColumns()
+		s.Select(joinT.C(audiotrack.CodecsPrimaryKey[0]))
+		s.AppendSelect(columns...)
+		s.SetDistinct(false)
+	})
+	if err := query.prepareQuery(ctx); err != nil {
+		return err
+	}
+	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
+		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
+			assign := spec.Assign
+			values := spec.ScanValues
+			spec.ScanValues = func(columns []string) ([]any, error) {
+				values, err := values(columns[1:])
+				if err != nil {
+					return nil, err
+				}
+				return append([]any{new(sql.NullInt64)}, values...), nil
+			}
+			spec.Assign = func(columns []string, values []any) error {
+				outValue := int(values[0].(*sql.NullInt64).Int64)
+				inValue := int(values[1].(*sql.NullInt64).Int64)
+				if nids[inValue] == nil {
+					nids[inValue] = map[*AudioTrack]struct{}{byID[outValue]: {}}
+					return assign(columns[1:], values[1:])
+				}
+				nids[inValue][byID[outValue]] = struct{}{}
+				return nil
+			}
+		})
+	})
+	neighbors, err := withInterceptors[[]*AudioCodec](ctx, query, qr, query.inters)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected "codecs" node returned %v`, n.ID)
+		}
+		for kn := range nodes {
+			assign(kn, n)
+		}
+	}
+	return nil
+}
 func (atq *AudioTrackQuery) loadMedia(ctx context.Context, query *PlaySessionMediaQuery, nodes []*AudioTrack, init func(*AudioTrack), assign func(*AudioTrack, *PlaySessionMedia)) error {
 	ids := make([]int, 0, len(nodes))
 	nodeids := make(map[int][]*AudioTrack)
@@ -533,6 +647,20 @@ func (atq *AudioTrackQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		selector.Limit(*limit)
 	}
 	return selector
+}
+
+// WithNamedCodecs tells the query-builder to eager-load the nodes that are connected to the "codecs"
+// edge with the given name. The optional arguments are used to configure the query builder of the edge.
+func (atq *AudioTrackQuery) WithNamedCodecs(name string, opts ...func(*AudioCodecQuery)) *AudioTrackQuery {
+	query := (&AudioCodecClient{config: atq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	if atq.withNamedCodecs == nil {
+		atq.withNamedCodecs = make(map[string]*AudioCodecQuery)
+	}
+	atq.withNamedCodecs[name] = query
+	return atq
 }
 
 // AudioTrackGroupBy is the group-by builder for AudioTrack entities.

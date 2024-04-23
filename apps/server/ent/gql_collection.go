@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/library"
 	"github.com/altierawr/vstreamer/ent/playbackclient"
@@ -15,6 +16,112 @@ import (
 	"github.com/altierawr/vstreamer/ent/video"
 	"github.com/altierawr/vstreamer/ent/videocodec"
 )
+
+// CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
+func (ac *AudioCodecQuery) CollectFields(ctx context.Context, satisfies ...string) (*AudioCodecQuery, error) {
+	fc := graphql.GetFieldContext(ctx)
+	if fc == nil {
+		return ac, nil
+	}
+	if err := ac.collectField(ctx, false, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+		return nil, err
+	}
+	return ac, nil
+}
+
+func (ac *AudioCodecQuery) collectField(ctx context.Context, oneNode bool, opCtx *graphql.OperationContext, collected graphql.CollectedField, path []string, satisfies ...string) error {
+	path = append([]string(nil), path...)
+	var (
+		unknownSeen    bool
+		fieldSeen      = make(map[string]struct{}, len(audiocodec.Columns))
+		selectedFields = []string{audiocodec.FieldID}
+	)
+	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
+		switch field.Name {
+
+		case "streams":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&StreamClient{config: ac.config}).Query()
+			)
+			if err := query.collectField(ctx, false, opCtx, field, path, mayAddCondition(satisfies, streamImplementors)...); err != nil {
+				return err
+			}
+			ac.WithNamedStreams(alias, func(wq *StreamQuery) {
+				*wq = *query
+			})
+
+		case "audioTracks":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&AudioTrackClient{config: ac.config}).Query()
+			)
+			if err := query.collectField(ctx, false, opCtx, field, path, mayAddCondition(satisfies, audiotrackImplementors)...); err != nil {
+				return err
+			}
+			ac.WithNamedAudioTracks(alias, func(wq *AudioTrackQuery) {
+				*wq = *query
+			})
+
+		case "media":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&PlaySessionMediaClient{config: ac.config}).Query()
+			)
+			if err := query.collectField(ctx, oneNode, opCtx, field, path, mayAddCondition(satisfies, playsessionmediaImplementors)...); err != nil {
+				return err
+			}
+			ac.withMedia = query
+		case "name":
+			if _, ok := fieldSeen[audiocodec.FieldName]; !ok {
+				selectedFields = append(selectedFields, audiocodec.FieldName)
+				fieldSeen[audiocodec.FieldName] = struct{}{}
+			}
+		case "mime":
+			if _, ok := fieldSeen[audiocodec.FieldMime]; !ok {
+				selectedFields = append(selectedFields, audiocodec.FieldMime)
+				fieldSeen[audiocodec.FieldMime] = struct{}{}
+			}
+		case "id":
+		case "__typename":
+		default:
+			unknownSeen = true
+		}
+	}
+	if !unknownSeen {
+		ac.Select(selectedFields...)
+	}
+	return nil
+}
+
+type audiocodecPaginateArgs struct {
+	first, last   *int
+	after, before *Cursor
+	opts          []AudioCodecPaginateOption
+}
+
+func newAudioCodecPaginateArgs(rv map[string]any) *audiocodecPaginateArgs {
+	args := &audiocodecPaginateArgs{}
+	if rv == nil {
+		return args
+	}
+	if v := rv[firstField]; v != nil {
+		args.first = v.(*int)
+	}
+	if v := rv[lastField]; v != nil {
+		args.last = v.(*int)
+	}
+	if v := rv[afterField]; v != nil {
+		args.after = v.(*Cursor)
+	}
+	if v := rv[beforeField]; v != nil {
+		args.before = v.(*Cursor)
+	}
+	return args
+}
 
 // CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
 func (at *AudioTrackQuery) CollectFields(ctx context.Context, satisfies ...string) (*AudioTrackQuery, error) {
@@ -37,6 +144,19 @@ func (at *AudioTrackQuery) collectField(ctx context.Context, oneNode bool, opCtx
 	)
 	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
 		switch field.Name {
+
+		case "codecs":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&AudioCodecClient{config: at.config}).Query()
+			)
+			if err := query.collectField(ctx, false, opCtx, field, path, mayAddCondition(satisfies, audiocodecImplementors)...); err != nil {
+				return err
+			}
+			at.WithNamedCodecs(alias, func(wq *AudioCodecQuery) {
+				*wq = *query
+			})
 
 		case "media":
 			var (
@@ -67,11 +187,6 @@ func (at *AudioTrackQuery) collectField(ctx context.Context, oneNode bool, opCtx
 			if _, ok := fieldSeen[audiotrack.FieldLanguage]; !ok {
 				selectedFields = append(selectedFields, audiotrack.FieldLanguage)
 				fieldSeen[audiotrack.FieldLanguage] = struct{}{}
-			}
-		case "codecs":
-			if _, ok := fieldSeen[audiotrack.FieldCodecs]; !ok {
-				selectedFields = append(selectedFields, audiotrack.FieldCodecs)
-				fieldSeen[audiotrack.FieldCodecs] = struct{}{}
 			}
 		case "id":
 		case "__typename":
@@ -355,6 +470,19 @@ func (psm *PlaySessionMediaQuery) collectField(ctx context.Context, oneNode bool
 			psm.WithNamedVideoCodecs(alias, func(wq *VideoCodecQuery) {
 				*wq = *query
 			})
+
+		case "audioCodecs":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&AudioCodecClient{config: psm.config}).Query()
+			)
+			if err := query.collectField(ctx, false, opCtx, field, path, mayAddCondition(satisfies, audiocodecImplementors)...); err != nil {
+				return err
+			}
+			psm.WithNamedAudioCodecs(alias, func(wq *AudioCodecQuery) {
+				*wq = *query
+			})
 		case "resolutions":
 			if _, ok := fieldSeen[playsessionmedia.FieldResolutions]; !ok {
 				selectedFields = append(selectedFields, playsessionmedia.FieldResolutions)
@@ -494,6 +622,28 @@ func (s *StreamQuery) collectField(ctx context.Context, oneNode bool, opCtx *gra
 	)
 	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
 		switch field.Name {
+
+		case "videoCodec":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&VideoCodecClient{config: s.config}).Query()
+			)
+			if err := query.collectField(ctx, oneNode, opCtx, field, path, mayAddCondition(satisfies, videocodecImplementors)...); err != nil {
+				return err
+			}
+			s.withVideoCodec = query
+
+		case "audioCodec":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&AudioCodecClient{config: s.config}).Query()
+			)
+			if err := query.collectField(ctx, oneNode, opCtx, field, path, mayAddCondition(satisfies, audiocodecImplementors)...); err != nil {
+				return err
+			}
+			s.withAudioCodec = query
 		case "width":
 			if _, ok := fieldSeen[stream.FieldWidth]; !ok {
 				selectedFields = append(selectedFields, stream.FieldWidth)
@@ -508,16 +658,6 @@ func (s *StreamQuery) collectField(ctx context.Context, oneNode bool, opCtx *gra
 			if _, ok := fieldSeen[stream.FieldContainer]; !ok {
 				selectedFields = append(selectedFields, stream.FieldContainer)
 				fieldSeen[stream.FieldContainer] = struct{}{}
-			}
-		case "videoCodec":
-			if _, ok := fieldSeen[stream.FieldVideoCodec]; !ok {
-				selectedFields = append(selectedFields, stream.FieldVideoCodec)
-				fieldSeen[stream.FieldVideoCodec] = struct{}{}
-			}
-		case "audioCodec":
-			if _, ok := fieldSeen[stream.FieldAudioCodec]; !ok {
-				selectedFields = append(selectedFields, stream.FieldAudioCodec)
-				fieldSeen[stream.FieldAudioCodec] = struct{}{}
 			}
 		case "segmentDuration":
 			if _, ok := fieldSeen[stream.FieldSegmentDuration]; !ok {
@@ -686,6 +826,19 @@ func (vc *VideoCodecQuery) collectField(ctx context.Context, oneNode bool, opCtx
 	)
 	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
 		switch field.Name {
+
+		case "streams":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&StreamClient{config: vc.config}).Query()
+			)
+			if err := query.collectField(ctx, false, opCtx, field, path, mayAddCondition(satisfies, streamImplementors)...); err != nil {
+				return err
+			}
+			vc.WithNamedStreams(alias, func(wq *StreamQuery) {
+				*wq = *query
+			})
 
 		case "media":
 			var (

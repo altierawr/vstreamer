@@ -8,7 +8,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/stream"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
 // Stream is the model entity for the Stream schema.
@@ -22,17 +24,53 @@ type Stream struct {
 	Height int `json:"height,omitempty"`
 	// Container holds the value of the "container" field.
 	Container string `json:"container,omitempty"`
-	// VideoCodec holds the value of the "video_codec" field.
-	VideoCodec string `json:"video_codec,omitempty"`
-	// AudioCodec holds the value of the "audio_codec" field.
-	AudioCodec string `json:"audio_codec,omitempty"`
 	// SegmentDuration holds the value of the "segment_duration" field.
 	SegmentDuration int `json:"segment_duration,omitempty"`
 	// Quality holds the value of the "quality" field.
 	Quality stream.Quality `json:"quality,omitempty"`
 	// Type holds the value of the "type" field.
-	Type         stream.Type `json:"type,omitempty"`
-	selectValues sql.SelectValues
+	Type stream.Type `json:"type,omitempty"`
+	// Edges holds the relations/edges for other nodes in the graph.
+	// The values are being populated by the StreamQuery when eager-loading is set.
+	Edges               StreamEdges `json:"edges"`
+	audio_codec_streams *int
+	video_codec_streams *int
+	selectValues        sql.SelectValues
+}
+
+// StreamEdges holds the relations/edges for other nodes in the graph.
+type StreamEdges struct {
+	// VideoCodec holds the value of the video_codec edge.
+	VideoCodec *VideoCodec `json:"video_codec,omitempty"`
+	// AudioCodec holds the value of the audio_codec edge.
+	AudioCodec *AudioCodec `json:"audio_codec,omitempty"`
+	// loadedTypes holds the information for reporting if a
+	// type was loaded (or requested) in eager-loading or not.
+	loadedTypes [2]bool
+	// totalCount holds the count of the edges above.
+	totalCount [2]map[string]int
+}
+
+// VideoCodecOrErr returns the VideoCodec value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e StreamEdges) VideoCodecOrErr() (*VideoCodec, error) {
+	if e.VideoCodec != nil {
+		return e.VideoCodec, nil
+	} else if e.loadedTypes[0] {
+		return nil, &NotFoundError{label: videocodec.Label}
+	}
+	return nil, &NotLoadedError{edge: "video_codec"}
+}
+
+// AudioCodecOrErr returns the AudioCodec value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e StreamEdges) AudioCodecOrErr() (*AudioCodec, error) {
+	if e.AudioCodec != nil {
+		return e.AudioCodec, nil
+	} else if e.loadedTypes[1] {
+		return nil, &NotFoundError{label: audiocodec.Label}
+	}
+	return nil, &NotLoadedError{edge: "audio_codec"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -42,8 +80,12 @@ func (*Stream) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case stream.FieldID, stream.FieldWidth, stream.FieldHeight, stream.FieldSegmentDuration:
 			values[i] = new(sql.NullInt64)
-		case stream.FieldContainer, stream.FieldVideoCodec, stream.FieldAudioCodec, stream.FieldQuality, stream.FieldType:
+		case stream.FieldContainer, stream.FieldQuality, stream.FieldType:
 			values[i] = new(sql.NullString)
+		case stream.ForeignKeys[0]: // audio_codec_streams
+			values[i] = new(sql.NullInt64)
+		case stream.ForeignKeys[1]: // video_codec_streams
+			values[i] = new(sql.NullInt64)
 		default:
 			values[i] = new(sql.UnknownType)
 		}
@@ -83,18 +125,6 @@ func (s *Stream) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				s.Container = value.String
 			}
-		case stream.FieldVideoCodec:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field video_codec", values[i])
-			} else if value.Valid {
-				s.VideoCodec = value.String
-			}
-		case stream.FieldAudioCodec:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field audio_codec", values[i])
-			} else if value.Valid {
-				s.AudioCodec = value.String
-			}
 		case stream.FieldSegmentDuration:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field segment_duration", values[i])
@@ -113,6 +143,20 @@ func (s *Stream) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				s.Type = stream.Type(value.String)
 			}
+		case stream.ForeignKeys[0]:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for edge-field audio_codec_streams", value)
+			} else if value.Valid {
+				s.audio_codec_streams = new(int)
+				*s.audio_codec_streams = int(value.Int64)
+			}
+		case stream.ForeignKeys[1]:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for edge-field video_codec_streams", value)
+			} else if value.Valid {
+				s.video_codec_streams = new(int)
+				*s.video_codec_streams = int(value.Int64)
+			}
 		default:
 			s.selectValues.Set(columns[i], values[i])
 		}
@@ -124,6 +168,16 @@ func (s *Stream) assignValues(columns []string, values []any) error {
 // This includes values selected through modifiers, order, etc.
 func (s *Stream) Value(name string) (ent.Value, error) {
 	return s.selectValues.Get(name)
+}
+
+// QueryVideoCodec queries the "video_codec" edge of the Stream entity.
+func (s *Stream) QueryVideoCodec() *VideoCodecQuery {
+	return NewStreamClient(s.config).QueryVideoCodec(s)
+}
+
+// QueryAudioCodec queries the "audio_codec" edge of the Stream entity.
+func (s *Stream) QueryAudioCodec() *AudioCodecQuery {
+	return NewStreamClient(s.config).QueryAudioCodec(s)
 }
 
 // Update returns a builder for updating this Stream.
@@ -157,12 +211,6 @@ func (s *Stream) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("container=")
 	builder.WriteString(s.Container)
-	builder.WriteString(", ")
-	builder.WriteString("video_codec=")
-	builder.WriteString(s.VideoCodec)
-	builder.WriteString(", ")
-	builder.WriteString("audio_codec=")
-	builder.WriteString(s.AudioCodec)
 	builder.WriteString(", ")
 	builder.WriteString("segment_duration=")
 	builder.WriteString(fmt.Sprintf("%v", s.SegmentDuration))

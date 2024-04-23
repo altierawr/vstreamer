@@ -4,6 +4,7 @@ package ent
 
 import (
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"math"
 
@@ -12,20 +13,23 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 	"github.com/altierawr/vstreamer/ent/predicate"
+	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
 // VideoCodecQuery is the builder for querying VideoCodec entities.
 type VideoCodecQuery struct {
 	config
-	ctx        *QueryContext
-	order      []videocodec.OrderOption
-	inters     []Interceptor
-	predicates []predicate.VideoCodec
-	withMedia  *PlaySessionMediaQuery
-	withFKs    bool
-	modifiers  []func(*sql.Selector)
-	loadTotal  []func(context.Context, []*VideoCodec) error
+	ctx              *QueryContext
+	order            []videocodec.OrderOption
+	inters           []Interceptor
+	predicates       []predicate.VideoCodec
+	withStreams      *StreamQuery
+	withMedia        *PlaySessionMediaQuery
+	withFKs          bool
+	modifiers        []func(*sql.Selector)
+	loadTotal        []func(context.Context, []*VideoCodec) error
+	withNamedStreams map[string]*StreamQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -60,6 +64,28 @@ func (vcq *VideoCodecQuery) Unique(unique bool) *VideoCodecQuery {
 func (vcq *VideoCodecQuery) Order(o ...videocodec.OrderOption) *VideoCodecQuery {
 	vcq.order = append(vcq.order, o...)
 	return vcq
+}
+
+// QueryStreams chains the current query on the "streams" edge.
+func (vcq *VideoCodecQuery) QueryStreams() *StreamQuery {
+	query := (&StreamClient{config: vcq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := vcq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := vcq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(videocodec.Table, videocodec.FieldID, selector),
+			sqlgraph.To(stream.Table, stream.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, videocodec.StreamsTable, videocodec.StreamsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(vcq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
 }
 
 // QueryMedia chains the current query on the "media" edge.
@@ -271,16 +297,28 @@ func (vcq *VideoCodecQuery) Clone() *VideoCodecQuery {
 		return nil
 	}
 	return &VideoCodecQuery{
-		config:     vcq.config,
-		ctx:        vcq.ctx.Clone(),
-		order:      append([]videocodec.OrderOption{}, vcq.order...),
-		inters:     append([]Interceptor{}, vcq.inters...),
-		predicates: append([]predicate.VideoCodec{}, vcq.predicates...),
-		withMedia:  vcq.withMedia.Clone(),
+		config:      vcq.config,
+		ctx:         vcq.ctx.Clone(),
+		order:       append([]videocodec.OrderOption{}, vcq.order...),
+		inters:      append([]Interceptor{}, vcq.inters...),
+		predicates:  append([]predicate.VideoCodec{}, vcq.predicates...),
+		withStreams: vcq.withStreams.Clone(),
+		withMedia:   vcq.withMedia.Clone(),
 		// clone intermediate query.
 		sql:  vcq.sql.Clone(),
 		path: vcq.path,
 	}
+}
+
+// WithStreams tells the query-builder to eager-load the nodes that are connected to
+// the "streams" edge. The optional arguments are used to configure the query builder of the edge.
+func (vcq *VideoCodecQuery) WithStreams(opts ...func(*StreamQuery)) *VideoCodecQuery {
+	query := (&StreamClient{config: vcq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	vcq.withStreams = query
+	return vcq
 }
 
 // WithMedia tells the query-builder to eager-load the nodes that are connected to
@@ -373,7 +411,8 @@ func (vcq *VideoCodecQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*
 		nodes       = []*VideoCodec{}
 		withFKs     = vcq.withFKs
 		_spec       = vcq.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
+			vcq.withStreams != nil,
 			vcq.withMedia != nil,
 		}
 	)
@@ -404,9 +443,23 @@ func (vcq *VideoCodecQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
+	if query := vcq.withStreams; query != nil {
+		if err := vcq.loadStreams(ctx, query, nodes,
+			func(n *VideoCodec) { n.Edges.Streams = []*Stream{} },
+			func(n *VideoCodec, e *Stream) { n.Edges.Streams = append(n.Edges.Streams, e) }); err != nil {
+			return nil, err
+		}
+	}
 	if query := vcq.withMedia; query != nil {
 		if err := vcq.loadMedia(ctx, query, nodes, nil,
 			func(n *VideoCodec, e *PlaySessionMedia) { n.Edges.Media = e }); err != nil {
+			return nil, err
+		}
+	}
+	for name, query := range vcq.withNamedStreams {
+		if err := vcq.loadStreams(ctx, query, nodes,
+			func(n *VideoCodec) { n.appendNamedStreams(name) },
+			func(n *VideoCodec, e *Stream) { n.appendNamedStreams(name, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -418,6 +471,37 @@ func (vcq *VideoCodecQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*
 	return nodes, nil
 }
 
+func (vcq *VideoCodecQuery) loadStreams(ctx context.Context, query *StreamQuery, nodes []*VideoCodec, init func(*VideoCodec), assign func(*VideoCodec, *Stream)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*VideoCodec)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.Stream(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(videocodec.StreamsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.video_codec_streams
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "video_codec_streams" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "video_codec_streams" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
 func (vcq *VideoCodecQuery) loadMedia(ctx context.Context, query *PlaySessionMediaQuery, nodes []*VideoCodec, init func(*VideoCodec), assign func(*VideoCodec, *PlaySessionMedia)) error {
 	ids := make([]int, 0, len(nodes))
 	nodeids := make(map[int][]*VideoCodec)
@@ -533,6 +617,20 @@ func (vcq *VideoCodecQuery) sqlQuery(ctx context.Context) *sql.Selector {
 		selector.Limit(*limit)
 	}
 	return selector
+}
+
+// WithNamedStreams tells the query-builder to eager-load the nodes that are connected to the "streams"
+// edge with the given name. The optional arguments are used to configure the query builder of the edge.
+func (vcq *VideoCodecQuery) WithNamedStreams(name string, opts ...func(*StreamQuery)) *VideoCodecQuery {
+	query := (&StreamClient{config: vcq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	if vcq.withNamedStreams == nil {
+		vcq.withNamedStreams = make(map[string]*StreamQuery)
+	}
+	vcq.withNamedStreams[name] = query
+	return vcq
 }
 
 // VideoCodecGroupBy is the group-by builder for VideoCodec entities.

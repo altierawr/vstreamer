@@ -9,7 +9,9 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/stream"
+	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
 // StreamCreate is the builder for creating a Stream entity.
@@ -37,18 +39,6 @@ func (sc *StreamCreate) SetContainer(s string) *StreamCreate {
 	return sc
 }
 
-// SetVideoCodec sets the "video_codec" field.
-func (sc *StreamCreate) SetVideoCodec(s string) *StreamCreate {
-	sc.mutation.SetVideoCodec(s)
-	return sc
-}
-
-// SetAudioCodec sets the "audio_codec" field.
-func (sc *StreamCreate) SetAudioCodec(s string) *StreamCreate {
-	sc.mutation.SetAudioCodec(s)
-	return sc
-}
-
 // SetSegmentDuration sets the "segment_duration" field.
 func (sc *StreamCreate) SetSegmentDuration(i int) *StreamCreate {
 	sc.mutation.SetSegmentDuration(i)
@@ -65,6 +55,44 @@ func (sc *StreamCreate) SetQuality(s stream.Quality) *StreamCreate {
 func (sc *StreamCreate) SetType(s stream.Type) *StreamCreate {
 	sc.mutation.SetType(s)
 	return sc
+}
+
+// SetVideoCodecID sets the "video_codec" edge to the VideoCodec entity by ID.
+func (sc *StreamCreate) SetVideoCodecID(id int) *StreamCreate {
+	sc.mutation.SetVideoCodecID(id)
+	return sc
+}
+
+// SetNillableVideoCodecID sets the "video_codec" edge to the VideoCodec entity by ID if the given value is not nil.
+func (sc *StreamCreate) SetNillableVideoCodecID(id *int) *StreamCreate {
+	if id != nil {
+		sc = sc.SetVideoCodecID(*id)
+	}
+	return sc
+}
+
+// SetVideoCodec sets the "video_codec" edge to the VideoCodec entity.
+func (sc *StreamCreate) SetVideoCodec(v *VideoCodec) *StreamCreate {
+	return sc.SetVideoCodecID(v.ID)
+}
+
+// SetAudioCodecID sets the "audio_codec" edge to the AudioCodec entity by ID.
+func (sc *StreamCreate) SetAudioCodecID(id int) *StreamCreate {
+	sc.mutation.SetAudioCodecID(id)
+	return sc
+}
+
+// SetNillableAudioCodecID sets the "audio_codec" edge to the AudioCodec entity by ID if the given value is not nil.
+func (sc *StreamCreate) SetNillableAudioCodecID(id *int) *StreamCreate {
+	if id != nil {
+		sc = sc.SetAudioCodecID(*id)
+	}
+	return sc
+}
+
+// SetAudioCodec sets the "audio_codec" edge to the AudioCodec entity.
+func (sc *StreamCreate) SetAudioCodec(a *AudioCodec) *StreamCreate {
+	return sc.SetAudioCodecID(a.ID)
 }
 
 // Mutation returns the StreamMutation object of the builder.
@@ -109,12 +137,6 @@ func (sc *StreamCreate) check() error {
 	}
 	if _, ok := sc.mutation.Container(); !ok {
 		return &ValidationError{Name: "container", err: errors.New(`ent: missing required field "Stream.container"`)}
-	}
-	if _, ok := sc.mutation.VideoCodec(); !ok {
-		return &ValidationError{Name: "video_codec", err: errors.New(`ent: missing required field "Stream.video_codec"`)}
-	}
-	if _, ok := sc.mutation.AudioCodec(); !ok {
-		return &ValidationError{Name: "audio_codec", err: errors.New(`ent: missing required field "Stream.audio_codec"`)}
 	}
 	if _, ok := sc.mutation.SegmentDuration(); !ok {
 		return &ValidationError{Name: "segment_duration", err: errors.New(`ent: missing required field "Stream.segment_duration"`)}
@@ -173,14 +195,6 @@ func (sc *StreamCreate) createSpec() (*Stream, *sqlgraph.CreateSpec) {
 		_spec.SetField(stream.FieldContainer, field.TypeString, value)
 		_node.Container = value
 	}
-	if value, ok := sc.mutation.VideoCodec(); ok {
-		_spec.SetField(stream.FieldVideoCodec, field.TypeString, value)
-		_node.VideoCodec = value
-	}
-	if value, ok := sc.mutation.AudioCodec(); ok {
-		_spec.SetField(stream.FieldAudioCodec, field.TypeString, value)
-		_node.AudioCodec = value
-	}
 	if value, ok := sc.mutation.SegmentDuration(); ok {
 		_spec.SetField(stream.FieldSegmentDuration, field.TypeInt, value)
 		_node.SegmentDuration = value
@@ -192,6 +206,40 @@ func (sc *StreamCreate) createSpec() (*Stream, *sqlgraph.CreateSpec) {
 	if value, ok := sc.mutation.GetType(); ok {
 		_spec.SetField(stream.FieldType, field.TypeEnum, value)
 		_node.Type = value
+	}
+	if nodes := sc.mutation.VideoCodecIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   stream.VideoCodecTable,
+			Columns: []string{stream.VideoCodecColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(videocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.video_codec_streams = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := sc.mutation.AudioCodecIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   stream.AudioCodecTable,
+			Columns: []string{stream.AudioCodecColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.audio_codec_streams = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
 }

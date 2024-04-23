@@ -19,13 +19,13 @@ func (AudioTrack) Fields() []ent.Field {
 		field.String("channel_layout"),
 		field.String("language").
 			Optional(),
-		field.Strings("codecs"),
 	}
 }
 
 // Edges of the AudioTrack.
 func (AudioTrack) Edges() []ent.Edge {
 	return []ent.Edge{
+		edge.To("codecs", AudioCodec.Type),
 		edge.From("media", PlaySessionMedia.Type).
 			Ref("audio_tracks").
 			Unique().

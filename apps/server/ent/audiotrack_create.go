@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/altierawr/vstreamer/ent/audiocodec"
 	"github.com/altierawr/vstreamer/ent/audiotrack"
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
 )
@@ -52,10 +53,19 @@ func (atc *AudioTrackCreate) SetNillableLanguage(s *string) *AudioTrackCreate {
 	return atc
 }
 
-// SetCodecs sets the "codecs" field.
-func (atc *AudioTrackCreate) SetCodecs(s []string) *AudioTrackCreate {
-	atc.mutation.SetCodecs(s)
+// AddCodecIDs adds the "codecs" edge to the AudioCodec entity by IDs.
+func (atc *AudioTrackCreate) AddCodecIDs(ids ...int) *AudioTrackCreate {
+	atc.mutation.AddCodecIDs(ids...)
 	return atc
+}
+
+// AddCodecs adds the "codecs" edges to the AudioCodec entity.
+func (atc *AudioTrackCreate) AddCodecs(a ...*AudioCodec) *AudioTrackCreate {
+	ids := make([]int, len(a))
+	for i := range a {
+		ids[i] = a[i].ID
+	}
+	return atc.AddCodecIDs(ids...)
 }
 
 // SetMediaID sets the "media" edge to the PlaySessionMedia entity by ID.
@@ -112,9 +122,6 @@ func (atc *AudioTrackCreate) check() error {
 	if _, ok := atc.mutation.ChannelLayout(); !ok {
 		return &ValidationError{Name: "channel_layout", err: errors.New(`ent: missing required field "AudioTrack.channel_layout"`)}
 	}
-	if _, ok := atc.mutation.Codecs(); !ok {
-		return &ValidationError{Name: "codecs", err: errors.New(`ent: missing required field "AudioTrack.codecs"`)}
-	}
 	if _, ok := atc.mutation.MediaID(); !ok {
 		return &ValidationError{Name: "media", err: errors.New(`ent: missing required edge "AudioTrack.media"`)}
 	}
@@ -160,9 +167,21 @@ func (atc *AudioTrackCreate) createSpec() (*AudioTrack, *sqlgraph.CreateSpec) {
 		_spec.SetField(audiotrack.FieldLanguage, field.TypeString, value)
 		_node.Language = value
 	}
-	if value, ok := atc.mutation.Codecs(); ok {
-		_spec.SetField(audiotrack.FieldCodecs, field.TypeJSON, value)
-		_node.Codecs = value
+	if nodes := atc.mutation.CodecsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   audiotrack.CodecsTable,
+			Columns: audiotrack.CodecsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(audiocodec.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := atc.mutation.MediaIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{

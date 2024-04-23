@@ -32,13 +32,26 @@ type VideoCodec struct {
 
 // VideoCodecEdges holds the relations/edges for other nodes in the graph.
 type VideoCodecEdges struct {
+	// Streams holds the value of the streams edge.
+	Streams []*Stream `json:"streams,omitempty"`
 	// Media holds the value of the media edge.
 	Media *PlaySessionMedia `json:"media,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 	// totalCount holds the count of the edges above.
-	totalCount [1]map[string]int
+	totalCount [2]map[string]int
+
+	namedStreams map[string][]*Stream
+}
+
+// StreamsOrErr returns the Streams value or an error if the edge
+// was not loaded in eager-loading.
+func (e VideoCodecEdges) StreamsOrErr() ([]*Stream, error) {
+	if e.loadedTypes[0] {
+		return e.Streams, nil
+	}
+	return nil, &NotLoadedError{edge: "streams"}
 }
 
 // MediaOrErr returns the Media value or an error if the edge
@@ -46,7 +59,7 @@ type VideoCodecEdges struct {
 func (e VideoCodecEdges) MediaOrErr() (*PlaySessionMedia, error) {
 	if e.Media != nil {
 		return e.Media, nil
-	} else if e.loadedTypes[0] {
+	} else if e.loadedTypes[1] {
 		return nil, &NotFoundError{label: playsessionmedia.Label}
 	}
 	return nil, &NotLoadedError{edge: "media"}
@@ -122,6 +135,11 @@ func (vc *VideoCodec) Value(name string) (ent.Value, error) {
 	return vc.selectValues.Get(name)
 }
 
+// QueryStreams queries the "streams" edge of the VideoCodec entity.
+func (vc *VideoCodec) QueryStreams() *StreamQuery {
+	return NewVideoCodecClient(vc.config).QueryStreams(vc)
+}
+
 // QueryMedia queries the "media" edge of the VideoCodec entity.
 func (vc *VideoCodec) QueryMedia() *PlaySessionMediaQuery {
 	return NewVideoCodecClient(vc.config).QueryMedia(vc)
@@ -160,6 +178,30 @@ func (vc *VideoCodec) String() string {
 	builder.WriteString(fmt.Sprintf("%v", vc.DynamicRange))
 	builder.WriteByte(')')
 	return builder.String()
+}
+
+// NamedStreams returns the Streams named value or an error if the edge was not
+// loaded in eager-loading with this name.
+func (vc *VideoCodec) NamedStreams(name string) ([]*Stream, error) {
+	if vc.Edges.namedStreams == nil {
+		return nil, &NotLoadedError{edge: name}
+	}
+	nodes, ok := vc.Edges.namedStreams[name]
+	if !ok {
+		return nil, &NotLoadedError{edge: name}
+	}
+	return nodes, nil
+}
+
+func (vc *VideoCodec) appendNamedStreams(name string, edges ...*Stream) {
+	if vc.Edges.namedStreams == nil {
+		vc.Edges.namedStreams = make(map[string][]*Stream)
+	}
+	if len(edges) == 0 {
+		vc.Edges.namedStreams[name] = []*Stream{}
+	} else {
+		vc.Edges.namedStreams[name] = append(vc.Edges.namedStreams[name], edges...)
+	}
 }
 
 // VideoCodecs is a parsable slice of VideoCodec.

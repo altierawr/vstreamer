@@ -10,6 +10,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/altierawr/vstreamer/ent/playsessionmedia"
+	"github.com/altierawr/vstreamer/ent/stream"
 	"github.com/altierawr/vstreamer/ent/videocodec"
 )
 
@@ -36,6 +37,21 @@ func (vcc *VideoCodecCreate) SetMime(s string) *VideoCodecCreate {
 func (vcc *VideoCodecCreate) SetDynamicRange(vr videocodec.DynamicRange) *VideoCodecCreate {
 	vcc.mutation.SetDynamicRange(vr)
 	return vcc
+}
+
+// AddStreamIDs adds the "streams" edge to the Stream entity by IDs.
+func (vcc *VideoCodecCreate) AddStreamIDs(ids ...int) *VideoCodecCreate {
+	vcc.mutation.AddStreamIDs(ids...)
+	return vcc
+}
+
+// AddStreams adds the "streams" edges to the Stream entity.
+func (vcc *VideoCodecCreate) AddStreams(s ...*Stream) *VideoCodecCreate {
+	ids := make([]int, len(s))
+	for i := range s {
+		ids[i] = s[i].ID
+	}
+	return vcc.AddStreamIDs(ids...)
 }
 
 // SetMediaID sets the "media" edge to the PlaySessionMedia entity by ID.
@@ -142,6 +158,22 @@ func (vcc *VideoCodecCreate) createSpec() (*VideoCodec, *sqlgraph.CreateSpec) {
 	if value, ok := vcc.mutation.DynamicRange(); ok {
 		_spec.SetField(videocodec.FieldDynamicRange, field.TypeEnum, value)
 		_node.DynamicRange = value
+	}
+	if nodes := vcc.mutation.StreamsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   videocodec.StreamsTable,
+			Columns: []string{videocodec.StreamsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(stream.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := vcc.mutation.MediaIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
